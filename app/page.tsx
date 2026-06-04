@@ -276,6 +276,13 @@ export default function Home() {
         !detailOpen && styles.detailCollapsed
       )}
     >
+      <div className={styles.ambientLayer} aria-hidden="true">
+        <span className={styles.ambientSweepA} />
+        <span className={styles.ambientSweepB} />
+        <span className={styles.ambientSweepC} />
+        <span className={styles.ambientGrid} />
+      </div>
+
       {/* ═══ LEFT: Cart Sidebar ═══ */}
       <aside className={styles.cartSidebar}>
         {cartOpen ? (
@@ -382,7 +389,10 @@ export default function Home() {
             <div className={styles.brandMark}>
               <ShoppingBag size={20} />
             </div>
-            <h1>Kade AI</h1>
+            <div className={styles.brandText}>
+              <h1>Kade AI</h1>
+              <span>Gemini buyer desk</span>
+            </div>
           </div>
 
           <nav className={styles.navTabs}>
@@ -392,6 +402,10 @@ export default function Home() {
           </nav>
 
           <div className={styles.topbarActions}>
+            <div className={styles.livePill}>
+              <span />
+              MCP live
+            </div>
             <button className={styles.iconBtn} aria-label="Dark mode">
               <Moon size={18} />
             </button>
@@ -410,6 +424,35 @@ export default function Home() {
         </header>
 
         <div className={styles.messages}>
+          <section className={styles.commandDeck}>
+            <div className={styles.commandHero}>
+              <div className={styles.commandKicker}>
+                <Sparkles size={14} />
+                Sri Lankan gift intelligence
+              </div>
+              <h2>Shop by feeling, not filters.</h2>
+              <p>Say the person, occasion, budget, and city. Kade will turn it into live Kapruka products, delivery checks, and a cart.</p>
+            </div>
+            <div className={styles.giftLanes}>
+              <button type="button" onClick={() => sendMessage("Birthday cake under LKR 8000 to Colombo")}>
+                <Gift size={17} />
+                <span>Birthday rescue</span>
+              </button>
+              <button type="button" onClick={() => sendMessage("Premium tea and biscuits hamper for office delivery")}>
+                <Package size={17} />
+                <span>Office hamper</span>
+              </button>
+              <button type="button" onClick={() => sendMessage("Red roses with chocolates to Galle tomorrow")}>
+                <Sparkles size={17} />
+                <span>Romance run</span>
+              </button>
+              <button type="button" onClick={() => sendMessage("අම්මාට ලස්සන gift එකක් budget 5000")}>
+                <MessageCircle size={17} />
+                <span>Sinhala mode</span>
+              </button>
+            </div>
+          </section>
+
           {messages.map((message) => (
             <article
               key={message.id}

@@ -49,6 +49,15 @@ const prompts = [
 ];
 
 const today = new Date().toISOString().slice(0, 10);
+const CART_STORAGE_KEY = "kade-ai-cart";
+const RECENT_CARTS_STORAGE_KEY = "kade-ai-recent-carts";
+
+type RecentCart = {
+  id: string;
+  label: string;
+  createdAt: string;
+  items: CartItem[];
+};
 
 function money(price?: { amount: number | null; currency: string }) {
   if (!price || price.amount == null) return "Price on request";
@@ -70,6 +79,36 @@ function labelText(label?: string) {
   }
 }
 
+function productPickMeta(product: Product, index: number) {
+  const text = `${product.id} ${product.name} ${product.summary ?? ""} ${product.category?.name ?? ""}`.toLowerCase();
+  const price = product.price?.amount ?? null;
+
+  if (index === 0) {
+    return { badge: "Kade pick", reason: "Best first option for this request." };
+  }
+  if (price != null && price < 1000) {
+    return { badge: "Best value", reason: "Good low-risk pick for the budget." };
+  }
+  if (/cake|birthday|icing/.test(text)) {
+    return { badge: "Celebration", reason: "Works well when the moment needs a cake." };
+  }
+  if (/flower|rose|bouquet/.test(text)) {
+    return { badge: "Warm gesture", reason: "A safe emotional pick with strong gifting value." };
+  }
+  if (/chocolate|ferrero|toblerone|hamper/.test(text)) {
+    return { badge: "Easy win", reason: "Simple, familiar, and easy to pair with a note." };
+  }
+  if (product.in_stock) {
+    return { badge: "Ready", reason: "In stock and suitable for quick ordering." };
+  }
+  return { badge: "Option", reason: "Worth checking as an alternative." };
+}
+
+function recentCartLabel(items: CartItem[]) {
+  const first = items[0]?.product.name ?? "Saved cart";
+  return items.length > 1 ? `${first} + ${items.length - 1} more` : first;
+}
+
 /* ── Main Page ── */
 
 export default function Home() {
@@ -85,6 +124,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [recentCarts, setRecentCarts] = useState<RecentCart[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
   const [detailOpen, setDetailOpen] = useState(true);
@@ -102,6 +142,8 @@ export default function Home() {
     giftMessage: "",
   });
   const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [trackingResult, setTrackingResult] = useState<Record<string, unknown> | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -146,6 +188,33 @@ export default function Home() {
       setCartOpen(false);
     }
   }, [cart.length]);
+
+  useEffect(() => {
+    try {
+      const savedCart = window.localStorage.getItem(CART_STORAGE_KEY);
+      const savedRecent = window.localStorage.getItem(RECENT_CARTS_STORAGE_KEY);
+      if (savedCart) setCart(JSON.parse(savedCart));
+      if (savedRecent) setRecentCarts(JSON.parse(savedRecent));
+    } catch {
+      // Ignore local storage corruption.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // Ignore storage quota errors.
+    }
+  }, [cart]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RECENT_CARTS_STORAGE_KEY, JSON.stringify(recentCarts));
+    } catch {
+      // Ignore storage quota errors.
+    }
+  }, [recentCarts]);
 
   /* ── Chat ── */
 
@@ -232,6 +301,32 @@ export default function Home() {
     );
   }
 
+  function saveRecentCart(items = cart) {
+    if (!items.length) return;
+    const snapshot: RecentCart = {
+      id: crypto.randomUUID(),
+      label: recentCartLabel(items),
+      createdAt: new Date().toISOString(),
+      items,
+    };
+    setRecentCarts((prev) => [snapshot, ...prev.filter((entry) => entry.label !== snapshot.label)].slice(0, 4));
+  }
+
+  function restoreRecentCart(recent: RecentCart) {
+    setCart(recent.items);
+    setCartOpen(true);
+    setShowCheckout(false);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: `Aney nice, I brought back that cart: ${recent.label}. Check the items and I'll help with delivery details.`,
+        label: "AI_RECOMMENDATION",
+      },
+    ]);
+  }
+
   async function createOrder() {
     if (!cart.length) return;
     setBusyAction("order");
@@ -265,7 +360,27 @@ export default function Home() {
           currency: "LKR",
         }),
       });
-      setOrder(await res.json());
+      const createdOrder = await res.json();
+      setOrder(createdOrder);
+      saveRecentCart();
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function trackOrder() {
+    const orderNumber = trackingNumber.trim();
+    if (!orderNumber) return;
+
+    setBusyAction("track");
+    setTrackingResult(null);
+    try {
+      const res = await fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_number: orderNumber }),
+      });
+      setTrackingResult(await res.json());
     } finally {
       setBusyAction(null);
     }
@@ -298,7 +413,7 @@ export default function Home() {
             <div className={styles.cartHeader}>
               <div>
                 <h2>Cart</h2>
-                <p className={styles.cartSecured}>Secured by Kapruka</p>
+              <p className={styles.cartSecured}>Your gift bundle</p>
               </div>
               <button className={styles.panelCloseBtn} onClick={() => setCartOpen(false)} aria-label="Close cart">
                 <X size={16} />
@@ -307,7 +422,20 @@ export default function Home() {
 
             <div className={styles.cartItems}>
               {cart.length === 0 ? (
-                <p className={styles.cartEmpty}>Search for products and add them here</p>
+                <div className={styles.cartEmptyState}>
+                  <p className={styles.cartEmpty}>Search for products and add them here</p>
+                  {recentCarts.length > 0 && (
+                    <div className={styles.recentCartList}>
+                      <span>Order again</span>
+                      {recentCarts.map((recent) => (
+                        <button key={recent.id} type="button" onClick={() => restoreRecentCart(recent)}>
+                          <History size={13} />
+                          {recent.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (
                 cart.map((item) => (
                   <div className={styles.cartItem} key={item.product.id}>
@@ -354,8 +482,14 @@ export default function Home() {
                 onClick={() => setShowCheckout(true)}
               >
                 <ShoppingBag size={16} />
-                Proceed to Secure Kapruka Checkout
+                Continue to delivery details
               </button>
+              {cart.length > 0 && (
+                <button className={styles.saveCartBtn} type="button" onClick={() => saveRecentCart()}>
+                  <Bookmark size={14} />
+                  Save for reorder
+                </button>
+              )}
             </div>
 
             <nav className={styles.bottomNav}>
@@ -496,10 +630,15 @@ export default function Home() {
 
                 {message.products?.length ? (
                   <div className={styles.productGrid}>
-                    {message.products.map((product) => (
+                    <div className={styles.productGridIntro}>
+                      <Sparkles size={13} />
+                      <span>Kade's best picks, with real Kapruka prices.</span>
+                    </div>
+                    {message.products.map((product, index) => (
                       <ProductCard
                         key={product.id}
                         product={product}
+                        index={index}
                         onAdd={addToCart}
                         onSelect={() => {
                           setSelectedProduct({ product });
@@ -588,7 +727,7 @@ export default function Home() {
         {detailOpen ? (
           <>
             <div className={styles.detailPanelHeader}>
-              <span>{selectedProduct ? "Product details" : "Details"}</span>
+              <span>{selectedProduct ? "Product details" : "Delivery desk"}</span>
               <button className={styles.panelCloseBtn} onClick={() => setDetailOpen(false)} aria-label="Close product details">
                 <X size={16} />
               </button>
@@ -626,8 +765,12 @@ export default function Home() {
         {detailOpen && showCheckout && (
           <div className={styles.checkoutSection}>
             <h3>
-              <Gift size={16} /> Checkout
+              <Gift size={16} /> Delivery details
             </h3>
+            <div className={styles.checkoutSummary}>
+              <span>{cart.length} item{cart.length === 1 ? "" : "s"} in bundle</span>
+              <strong>{money({ amount: total, currency: "LKR" })}</strong>
+            </div>
             <input
               className={styles.checkoutInput}
               placeholder="Recipient name"
@@ -691,6 +834,26 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {detailOpen && (
+          <div className={styles.trackingSection}>
+            <h3>
+              <Truck size={16} /> Track an order
+            </h3>
+            <div className={styles.trackingForm}>
+              <input
+                className={styles.checkoutInput}
+                placeholder="Kapruka order number"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+              />
+              <button className={styles.trackBtn} onClick={trackOrder} disabled={!trackingNumber.trim() || busyAction === "track"}>
+                {busyAction === "track" ? <Loader2 size={15} className={styles.spinIcon} /> : <Search size={15} />}
+              </button>
+            </div>
+            {trackingResult && <TrackingTimeline result={trackingResult} />}
+          </div>
+        )}
       </aside>
 
     </main>
@@ -727,13 +890,17 @@ function MessageContent({ text }: { text: string }) {
 
 function ProductCard({
   product,
+  index,
   onAdd,
   onSelect,
 }: {
   product: Product;
+  index: number;
   onAdd: (p: Product) => void;
   onSelect: () => void;
 }) {
+  const pick = productPickMeta(product, index);
+
   return (
     <div className={styles.productCard} onClick={onSelect}>
       <div className={styles.productCardImage}>
@@ -747,10 +914,15 @@ function ProductCard({
         <span className={clsx(styles.stockBadge, !product.in_stock && styles.stockBadgeOut)}>
           {product.in_stock ? "In Stock" : "Check Stock"}
         </span>
+        <span className={styles.pickBadge}>{pick.badge}</span>
       </div>
       <div className={styles.productCardBody}>
         <h4>{product.name}</h4>
         <p>{product.summary || product.category?.name || "Kapruka product"}</p>
+        <div className={styles.pickReason}>
+          <Sparkles size={11} />
+          <span>{pick.reason}</span>
+        </div>
         <div className={styles.productCardFoot}>
           <strong>{money(product.price)}</strong>
           <button
@@ -765,6 +937,27 @@ function ProductCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrackingTimeline({ result }: { result: Record<string, unknown> }) {
+  const status = String(result.status ?? result.order_status ?? "Tracking received");
+  const steps = [
+    "Order received",
+    status,
+    result.delivery_status ? String(result.delivery_status) : "Delivery update pending",
+  ].filter(Boolean);
+
+  return (
+    <div className={styles.trackingTimeline}>
+      {steps.map((step, index) => (
+        <div className={styles.trackingStep} key={`${step}-${index}`}>
+          <span />
+          <p>{step}</p>
+        </div>
+      ))}
+      <pre className={styles.trackingRaw}>{JSON.stringify(result, null, 2)}</pre>
     </div>
   );
 }

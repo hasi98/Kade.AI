@@ -77,6 +77,9 @@ type SearchResult = {
   applied_filters?: Record<string, unknown>;
 };
 
+const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
+const searchCache = new Map<string, { expiresAt: number; value: SearchResult }>();
+
 function normalizeSearchQuery(rawQuery: string) {
   const lower = rawQuery.toLowerCase();
   if (/\b(cakes?|birthday cake|birthday|ribbon cake|bento cake|keik)\b/.test(lower) || /කේක්|උපන්දින|கேக்|பிறந்தநாள்/.test(rawQuery)) return "birthday";
@@ -142,8 +145,19 @@ async function searchKaprukaProducts(
   options: { limit: number; max_price: number | null }
 ) {
   const limit = Math.min(Math.max(options.limit || 8, 1), 20);
+  const normalizedQuery = normalizeSearchQuery(rawQuery);
+  const cacheKey = JSON.stringify({
+    q: normalizedQuery,
+    limit,
+    max_price: options.max_price ?? null,
+  });
+  const cached = searchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const result = await callKaprukaTool<SearchResult>("kapruka_search_products", {
-    q: normalizeSearchQuery(rawQuery),
+    q: normalizedQuery,
     category: null,
     limit: Math.max(limit, 12),
     currency: "LKR",
@@ -154,10 +168,18 @@ async function searchKaprukaProducts(
 
   const products = (result.results ?? []).filter((product) => isRelevantProduct(product, rawQuery)).slice(0, limit);
 
-  return {
+  const value = {
     ...result,
     results: products,
   };
+  searchCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, value });
+
+  if (searchCache.size > 80) {
+    const firstKey = searchCache.keys().next().value;
+    if (firstKey) searchCache.delete(firstKey);
+  }
+
+  return value;
 }
 
 function sriLankaDate(offsetDays = 0) {

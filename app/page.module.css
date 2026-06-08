@@ -293,11 +293,52 @@
   padding: 0 16px;
 }
 
+.cartEmptyState {
+  display: grid;
+  gap: 14px;
+}
+
 .cartEmpty {
   padding: 24px 0;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.recentCartList {
+  display: grid;
+  gap: 8px;
+}
+
+.recentCartList > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recentCartList button,
+.saveCartBtn {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  transition: all var(--transition);
+}
+
+.recentCartList button:hover,
+.saveCartBtn:hover {
+  border-color: var(--border-accent);
+  background: var(--accent-muted);
+  color: var(--accent);
 }
 
 .cartItem {
@@ -445,6 +486,12 @@
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.saveCartBtn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 8px;
 }
 
 .bottomNav {
@@ -757,6 +804,20 @@
   margin-top: 14px;
 }
 
+.productGridIntro {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .productCard {
   position: relative;
   overflow: hidden;
@@ -844,6 +905,23 @@
   background: #ef4444;
 }
 
+.pickBadge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(212, 148, 26, 0.9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
 .productCardBody {
   padding: 11px 12px 12px;
 }
@@ -869,6 +947,26 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.pickReason {
+  min-height: 34px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.pickReason svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+  margin-top: 1px;
 }
 
 .productCardFoot {
@@ -1296,6 +1394,24 @@
   gap: 8px;
 }
 
+.checkoutSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.checkoutSummary strong {
+  color: var(--accent);
+  font-size: 14px;
+}
+
 .checkoutInput {
   width: 100%;
   padding: 10px 12px;
@@ -1401,6 +1517,98 @@
   font-size: 11px;
   white-space: pre-wrap;
   color: var(--text-secondary);
+}
+
+.trackingSection {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trackingSection h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.trackingForm {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 8px;
+}
+
+.trackBtn {
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: var(--shadow-glow);
+}
+
+.trackBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.trackingTimeline {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+}
+
+.trackingStep {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  padding-bottom: 10px;
+}
+
+.trackingStep:not(:last-of-type)::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 13px;
+  bottom: -1px;
+  width: 1px;
+  background: var(--border-accent);
+}
+
+.trackingStep span {
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  border: 3px solid var(--accent-muted);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.trackingStep p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.trackingRaw {
+  max-height: 120px;
+  overflow: auto;
+  margin: 4px 0 0;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: pre-wrap;
 }
 
 /* ── Delivery Result Card ── */

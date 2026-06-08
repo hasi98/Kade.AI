@@ -51,12 +51,53 @@ const prompts = [
 const today = new Date().toISOString().slice(0, 10);
 const CART_STORAGE_KEY = "kade-ai-cart";
 const RECENT_CARTS_STORAGE_KEY = "kade-ai-recent-carts";
+const POPULAR_DELIVERY_CITIES = [
+  "Colombo 01",
+  "Colombo 02",
+  "Colombo 03",
+  "Colombo 04",
+  "Colombo 05",
+  "Colombo 06",
+  "Colombo 07",
+  "Colombo 08",
+  "Colombo 09",
+  "Colombo 10",
+  "Colombo 11",
+  "Colombo 12",
+  "Colombo 13",
+  "Colombo 14",
+  "Colombo 15",
+  "Kandy",
+  "Galle",
+  "Negombo",
+  "Jaffna",
+  "Matara",
+  "Kurunegala",
+  "Anuradhapura",
+  "Ratnapura",
+  "Batticaloa",
+  "Nugegoda",
+  "Maharagama",
+  "Dehiwala",
+  "Mount Lavinia",
+  "Moratuwa",
+  "Kelaniya",
+  "Wattala",
+  "Panadura",
+  "Kalutara",
+  "Gampaha",
+].map((name) => ({ name }));
 
 type RecentCart = {
   id: string;
   label: string;
   createdAt: string;
   items: CartItem[];
+};
+
+type DeliveryCity = {
+  name: string;
+  aliases?: string[];
 };
 
 function money(price?: { amount: number | null; currency: string }) {
@@ -131,6 +172,7 @@ export default function Home() {
   const [giftWrap, setGiftWrap] = useState(false);
   const [personalNote, setPersonalNote] = useState(false);
   const [city, setCity] = useState("Colombo 07");
+  const [cityOptions, setCityOptions] = useState<DeliveryCity[]>([]);
   const [deliveryDate, setDeliveryDate] = useState(today);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkout, setCheckout] = useState({
@@ -142,6 +184,7 @@ export default function Home() {
     giftMessage: "",
   });
   const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+  const [deliveryQuote, setDeliveryQuote] = useState<Record<string, unknown> | null>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingResult, setTrackingResult] = useState<Record<string, unknown> | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -170,6 +213,7 @@ export default function Home() {
 
   const canCheckout =
     cart.length > 0 &&
+    city &&
     checkout.recipientName.trim() &&
     checkout.recipientPhone.trim() &&
     checkout.address.trim();
@@ -215,6 +259,28 @@ export default function Home() {
       // Ignore storage quota errors.
     }
   }, [recentCarts]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetch("/api/cities?limit=50")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        const cities: DeliveryCity[] = Array.isArray(data.cities) ? data.cities : [];
+        const merged = [...POPULAR_DELIVERY_CITIES, ...cities].filter(
+          (option, index, all) => all.findIndex((item) => item.name === option.name) === index
+        );
+        setCityOptions(merged.length ? merged : [{ name: "Colombo 07" }]);
+      })
+      .catch(() => {
+        if (mounted) setCityOptions([{ name: "Colombo 07" }]);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   /* ── Chat ── */
 
@@ -325,6 +391,33 @@ export default function Home() {
         label: "AI_RECOMMENDATION",
       },
     ]);
+  }
+
+  function openDeliveryDetails() {
+    if (!cart.length) return;
+    setShowCheckout(true);
+    setDetailOpen(true);
+    setSelectedProduct(null);
+    setDeliveryQuote(null);
+  }
+
+  async function checkDeliveryQuote() {
+    setBusyAction("delivery");
+    setDeliveryQuote(null);
+    try {
+      const res = await fetch("/api/delivery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          delivery_date: deliveryDate,
+          product_id: cart[0]?.product.id ?? selectedProduct?.product.id ?? null,
+        }),
+      });
+      setDeliveryQuote(await res.json());
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function createOrder() {
@@ -479,7 +572,7 @@ export default function Home() {
               <button
                 className={styles.checkoutBtn}
                 disabled={cart.length === 0}
-                onClick={() => setShowCheckout(true)}
+                onClick={openDeliveryDetails}
               >
                 <ShoppingBag size={16} />
                 Continue to delivery details
@@ -727,15 +820,36 @@ export default function Home() {
         {detailOpen ? (
           <>
             <div className={styles.detailPanelHeader}>
-              <span>{selectedProduct ? "Product details" : "Delivery desk"}</span>
-              <button className={styles.panelCloseBtn} onClick={() => setDetailOpen(false)} aria-label="Close product details">
+              <span>{showCheckout ? "Delivery details" : selectedProduct ? "Product details" : "Delivery desk"}</span>
+              <button className={styles.panelCloseBtn} onClick={() => setDetailOpen(false)} aria-label="Close panel">
                 <X size={16} />
               </button>
             </div>
-            {selectedProduct ? (
+            {showCheckout ? (
+              <DeliveryDetailsPanel
+                cart={cart}
+                total={total}
+                city={city}
+                cityOptions={cityOptions}
+                deliveryDate={deliveryDate}
+                checkout={checkout}
+                order={order}
+                payUrl={payUrl}
+                deliveryQuote={deliveryQuote}
+                busyAction={busyAction}
+                canCheckout={Boolean(canCheckout)}
+                onCityChange={setCity}
+                onDateChange={setDeliveryDate}
+                onCheckoutChange={setCheckout}
+                onCheckDelivery={checkDeliveryQuote}
+                onCreateOrder={createOrder}
+                onBack={() => setShowCheckout(false)}
+              />
+            ) : selectedProduct ? (
               <ProductDetailPanel
                 selected={selectedProduct}
                 city={city}
+                cityOptions={cityOptions}
                 deliveryDate={deliveryDate}
                 onCityChange={setCity}
                 onDateChange={setDeliveryDate}
@@ -762,7 +876,7 @@ export default function Home() {
         )}
 
         {/* Checkout overlay within detail pane */}
-        {detailOpen && showCheckout && (
+        {false && detailOpen && showCheckout && (
           <div className={styles.checkoutSection}>
             <h3>
               <Gift size={16} /> Delivery details
@@ -825,7 +939,7 @@ export default function Home() {
             {order && (
               <div className={styles.orderResult}>
                 {payUrl && (
-                  <a href={payUrl} target="_blank" rel="noreferrer" className={styles.orderResultLink}>
+                  <a href={payUrl ?? undefined} target="_blank" rel="noreferrer" className={styles.orderResultLink}>
                     <ExternalLink size={16} /> Open Payment Link
                   </a>
                 )}
@@ -835,7 +949,7 @@ export default function Home() {
           </div>
         )}
 
-        {detailOpen && (
+        {detailOpen && !showCheckout && (
           <div className={styles.trackingSection}>
             <h3>
               <Truck size={16} /> Track an order
@@ -962,11 +1076,189 @@ function TrackingTimeline({ result }: { result: Record<string, unknown> }) {
   );
 }
 
+function DeliveryDetailsPanel({
+  cart,
+  total,
+  city,
+  cityOptions,
+  deliveryDate,
+  checkout,
+  order,
+  payUrl,
+  deliveryQuote,
+  busyAction,
+  canCheckout,
+  onCityChange,
+  onDateChange,
+  onCheckoutChange,
+  onCheckDelivery,
+  onCreateOrder,
+  onBack,
+}: {
+  cart: CartItem[];
+  total: number;
+  city: string;
+  cityOptions: DeliveryCity[];
+  deliveryDate: string;
+  checkout: {
+    recipientName: string;
+    recipientPhone: string;
+    address: string;
+    senderName: string;
+    anonymous: boolean;
+    giftMessage: string;
+  };
+  order: Record<string, unknown> | null;
+  payUrl: string | null;
+  deliveryQuote: Record<string, unknown> | null;
+  busyAction: string | null;
+  canCheckout: boolean;
+  onCityChange: (value: string) => void;
+  onDateChange: (value: string) => void;
+  onCheckoutChange: (value: {
+    recipientName: string;
+    recipientPhone: string;
+    address: string;
+    senderName: string;
+    anonymous: boolean;
+    giftMessage: string;
+  }) => void;
+  onCheckDelivery: () => void;
+  onCreateOrder: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className={styles.checkoutSection}>
+      <div className={styles.deliveryHero}>
+        <button type="button" className={styles.deliveryBackBtn} onClick={onBack}>
+          <Package size={14} />
+          Back to product
+        </button>
+        <h2>Continue to delivery</h2>
+        <p>No form stress. Just the details Kapruka needs for the secure pay link.</p>
+      </div>
+
+      <div className={styles.checkoutSummary}>
+        <span>{cart.length} item{cart.length === 1 ? "" : "s"} in bundle</span>
+        <strong>{money({ amount: total, currency: "LKR" })}</strong>
+      </div>
+
+      <div className={styles.deliveryMiniCart}>
+        {cart.slice(0, 3).map((item) => (
+          <div key={item.product.id}>
+            {firstImage(item.product) ? <img src={firstImage(item.product)} alt="" /> : <span />}
+            <p>{item.product.name}</p>
+            <strong>{item.quantity}x</strong>
+          </div>
+        ))}
+        {cart.length > 3 && <small>+ {cart.length - 3} more items</small>}
+      </div>
+
+      <div className={styles.checkoutGroup}>
+        <label>
+          <span>Delivery city</span>
+          <select className={styles.checkoutInput} value={city} onChange={(e) => onCityChange(e.target.value)}>
+            {(cityOptions.length ? cityOptions : [{ name: city }]).map((option) => (
+              <option key={option.name} value={option.name}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Delivery date</span>
+          <input
+            className={styles.checkoutInput}
+            type="date"
+            min={today}
+            value={deliveryDate}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
+        </label>
+
+        <button className={styles.deliveryQuoteBtn} type="button" onClick={onCheckDelivery} disabled={busyAction === "delivery"}>
+          {busyAction === "delivery" ? <Loader2 size={15} className={styles.spinIcon} /> : <Truck size={15} />}
+          Check delivery price
+        </button>
+      </div>
+
+      {deliveryQuote && (
+        <div className={styles.deliveryQuoteCard}>
+          <Truck size={17} />
+          <div>
+            <strong>Delivery checked for {city}</strong>
+            <pre>{JSON.stringify(deliveryQuote, null, 2)}</pre>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.checkoutGroup}>
+        <input
+          className={styles.checkoutInput}
+          placeholder="Recipient name"
+          value={checkout.recipientName}
+          onChange={(e) => onCheckoutChange({ ...checkout, recipientName: e.target.value })}
+        />
+        <input
+          className={styles.checkoutInput}
+          placeholder="Recipient phone"
+          value={checkout.recipientPhone}
+          onChange={(e) => onCheckoutChange({ ...checkout, recipientPhone: e.target.value })}
+        />
+        <textarea
+          className={`${styles.checkoutInput} ${styles.checkoutTextarea}`}
+          placeholder="Delivery address"
+          value={checkout.address}
+          onChange={(e) => onCheckoutChange({ ...checkout, address: e.target.value })}
+        />
+        <input
+          className={styles.checkoutInput}
+          placeholder="Sender name (optional)"
+          value={checkout.senderName}
+          onChange={(e) => onCheckoutChange({ ...checkout, senderName: e.target.value })}
+        />
+        <textarea
+          className={`${styles.checkoutInput} ${styles.checkoutTextarea}`}
+          placeholder="Gift message (optional)"
+          value={checkout.giftMessage}
+          onChange={(e) => onCheckoutChange({ ...checkout, giftMessage: e.target.value })}
+        />
+        <label className={styles.checkoutRow}>
+          <input
+            type="checkbox"
+            checked={checkout.anonymous}
+            onChange={(e) => onCheckoutChange({ ...checkout, anonymous: e.target.checked })}
+          />
+          Send anonymously
+        </label>
+      </div>
+
+      <button className={styles.payBtn} onClick={onCreateOrder} disabled={!canCheckout || busyAction === "order"}>
+        {busyAction === "order" ? <Loader2 size={16} className={styles.spinIcon} /> : <ShoppingBag size={16} />}
+        Create secure Kapruka pay link
+      </button>
+
+      {order && (
+        <div className={styles.orderResult}>
+          {payUrl && (
+            <a href={payUrl} target="_blank" rel="noreferrer" className={styles.orderResultLink}>
+              <ExternalLink size={16} /> Open secure payment link
+            </a>
+          )}
+          <pre className={styles.orderResultPre}>{JSON.stringify(order, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Product Detail Panel ── */
 
 function ProductDetailPanel({
   selected,
   city,
+  cityOptions,
   deliveryDate,
   onCityChange,
   onDateChange,
@@ -978,6 +1270,7 @@ function ProductDetailPanel({
 }: {
   selected: SelectedProduct;
   city: string;
+  cityOptions: DeliveryCity[];
   deliveryDate: string;
   onCityChange: (v: string) => void;
   onDateChange: (v: string) => void;
@@ -1067,12 +1360,17 @@ function ProductDetailPanel({
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <MapPin size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-            <input
+            <select
               className={styles.checkoutInput}
               value={city}
               onChange={(e) => onCityChange(e.target.value)}
-              placeholder="Delivery city"
-            />
+            >
+              {(cityOptions.length ? cityOptions : [{ name: city }]).map((option) => (
+                <option key={option.name} value={option.name}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <CalendarDays size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />

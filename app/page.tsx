@@ -15,6 +15,7 @@ import {
   Mic,
   Minus,
   Moon,
+  Sun,
   Package,
   Paperclip,
   Plus,
@@ -34,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import clsx from "clsx";
+import { GoogleGenAI, Modality } from "@google/genai";
 import type { CartItem, ChatMessage, Product, SelectedProduct } from "@/lib/types";
 import styles from "./page.module.css";
 
@@ -101,6 +103,10 @@ export default function Home() {
   });
   const [order, setOrder] = useState<Record<string, unknown> | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  const [showLiveCall, setShowLiveCall] = useState(false);
+  const closeLiveCall = useCallback(() => setShowLiveCall(false), []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +138,10 @@ export default function Home() {
   }, [messages, loading]);
 
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  useEffect(() => {
     if (cart.length === 0) {
       setCartOpen(false);
     }
@@ -140,11 +150,15 @@ export default function Home() {
   /* ── Chat ── */
 
   const sendMessage = useCallback(
-    async (text = input) => {
+    async (text = input, audioData?: { data: string; mimeType: string }) => {
       const trimmed = text.trim();
-      if (!trimmed || loading) return;
+      if ((!trimmed && !audioData) || loading) return;
 
-      const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", text: trimmed };
+      const userMessage: ChatMessage = { 
+        id: crypto.randomUUID(), 
+        role: "user", 
+        text: trimmed || (audioData ? "🔊 Audio Message" : "") 
+      };
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
       setLoading(true);
@@ -156,6 +170,7 @@ export default function Home() {
           body: JSON.stringify({
             message: trimmed,
             history: conversationHistory,
+            audio: audioData,
           }),
         });
 
@@ -276,13 +291,6 @@ export default function Home() {
         !detailOpen && styles.detailCollapsed
       )}
     >
-      <div className={styles.ambientLayer} aria-hidden="true">
-        <span className={styles.ambientSweepA} />
-        <span className={styles.ambientSweepB} />
-        <span className={styles.ambientSweepC} />
-        <span className={styles.ambientGrid} />
-      </div>
-
       {/* ═══ LEFT: Cart Sidebar ═══ */}
       <aside className={styles.cartSidebar}>
         {cartOpen ? (
@@ -406,8 +414,12 @@ export default function Home() {
               <span />
               MCP live
             </div>
-            <button className={styles.iconBtn} aria-label="Dark mode">
-              <Moon size={18} />
+            <button 
+              className={clsx(styles.iconBtn, styles.themeToggle)} 
+              aria-label={darkMode ? 'Light mode' : 'Dark mode'}
+              onClick={() => setDarkMode(!darkMode)}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button
               className={styles.iconBtn}
@@ -424,6 +436,7 @@ export default function Home() {
         </header>
 
         <div className={styles.messages}>
+          {messages.length <= 1 && (
           <section className={styles.commandDeck}>
             <div className={styles.commandHero}>
               <div className={styles.commandKicker}>
@@ -452,6 +465,7 @@ export default function Home() {
               </button>
             </div>
           </section>
+          )}
 
           {messages.map((message) => (
             <article
@@ -534,30 +548,39 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        <form className={styles.composer} onSubmit={onSubmit}>
-          <button type="button" className={styles.composerIconBtn} aria-label="Attach">
-            <Paperclip size={18} />
-          </button>
-          <input
-            ref={inputRef}
-            className={styles.composerInput}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Kade AI to find more or refine search... / සිංහලෙන් ලියන්න"
-            disabled={loading}
-          />
-          <button type="button" className={styles.composerIconBtn} aria-label="Voice">
-            <Mic size={18} />
-          </button>
-          <button
-            type="submit"
-            className={styles.composerSend}
-            disabled={!input.trim() || loading}
-            aria-label="Send"
-          >
-            {loading ? <Loader2 size={18} className={styles.spinIcon} /> : <ChevronUp size={20} />}
-          </button>
-        </form>
+        {showLiveCall ? (
+          <LiveCallOverlay onClose={closeLiveCall} onShoppingRequest={sendMessage} />
+        ) : (
+          <form className={styles.composer} onSubmit={onSubmit}>
+            <button type="button" className={styles.composerIconBtn} aria-label="Attach">
+              <Paperclip size={18} />
+            </button>
+            <input
+              ref={inputRef}
+              className={styles.composerInput}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask Kade AI to find more or refine search... / සිංහලෙන් ලියන්න"
+              disabled={loading}
+            />
+            <button 
+              type="button" 
+              className={styles.composerIconBtn}
+              aria-label="Voice"
+              onClick={() => setShowLiveCall(true)}
+            >
+              <Mic size={18} />
+            </button>
+            <button
+              type="submit"
+              className={styles.composerSend}
+              disabled={!input.trim() || loading}
+              aria-label="Send"
+            >
+              {loading ? <Loader2 size={18} className={styles.spinIcon} /> : <ChevronUp size={20} />}
+            </button>
+          </form>
+        )}
       </section>
 
       {/* ═══ RIGHT: Product Detail ═══ */}
@@ -669,6 +692,7 @@ export default function Home() {
           </div>
         )}
       </aside>
+
     </main>
   );
 }
@@ -876,5 +900,369 @@ function ProductDetailPanel({
         )}
       </div>
     </>
+  );
+}
+
+/* ── Live Call Overlay Component ── */
+
+function LiveCallOverlay({
+  onClose,
+  onShoppingRequest,
+}: {
+  onClose: () => void;
+  onShoppingRequest: (text: string) => void;
+}) {
+  const [status, setStatus] = useState<"connecting" | "listening" | "speaking">("connecting");
+  const [muted, setMuted] = useState(false);
+  const [transcript, setTranscript] = useState("Connecting to Kade AI...");
+  const sessionRef = useRef<Awaited<ReturnType<GoogleGenAI["live"]["connect"]>> | null>(null);
+  const mutedRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const nextPlayTimeRef = useRef(0);
+  const playingSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  const closeRequestedRef = useRef(false);
+  const voiceBriefRef = useRef<string[]>([]);
+  const lastDispatchedVoiceRef = useRef("");
+  const onShoppingRequestRef = useRef(onShoppingRequest);
+  const statusRef = useRef(status);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    onShoppingRequestRef.current = onShoppingRequest;
+  }, [onShoppingRequest]);
+
+  const handleVoiceTranscript = useCallback((text: string) => {
+    const normalizedText = text.trim();
+    if (normalizedText.length < 3) return;
+
+    const lower = normalizedText.toLowerCase();
+    const isConfirmation =
+      /\b(okay|ok|yes|yeah|yep|sure|correct|confirm|search|show me|show them|find them|go ahead|that's all|thats all|hari|ela|ow|oya)\b/.test(lower) ||
+      /හරි|ඔව්|ඔයා|බලන්න|හොයන්න|පෙන්වන්න|ඒක තමයි|சரி|ஆம்|தேடு|காட்டு/.test(normalizedText);
+
+    const hasShoppingSignal =
+      /\b(cakes?|birthday|flowers?|roses?|bouquet|gifts?|chocolates?|biscuits?|cookies?|crackers?|hamper|delivery|colombo|kandy|galle|vanilla|chocolate|small|large|big|budget|under|rs|lkr)\b/.test(lower) ||
+      /කේක්|උපන්දින|මල්|රෝස|තෑගි|චොකලට්|බිස්කට්|කොළඹ|වැනිලා|පොඩි|ලොකු|යට|கேக்|பிறந்தநாள்|பூ|மலர்|பரிசு|சாக்லேட்|பிஸ்கட்|கொழும்பு/.test(normalizedText);
+
+    if (hasShoppingSignal && !isConfirmation) {
+      const lastBrief = voiceBriefRef.current[voiceBriefRef.current.length - 1];
+      if (lastBrief !== normalizedText) {
+        voiceBriefRef.current = [...voiceBriefRef.current, normalizedText].slice(-6);
+      }
+      return;
+    }
+
+    if (!isConfirmation) return;
+
+    const briefParts = voiceBriefRef.current.length ? voiceBriefRef.current : [normalizedText];
+    const searchText = [...briefParts, normalizedText].join(". ");
+    if (searchText.length < 3 || searchText === lastDispatchedVoiceRef.current) return;
+
+    lastDispatchedVoiceRef.current = searchText;
+    voiceBriefRef.current = [];
+    onShoppingRequestRef.current(searchText);
+  }, []);
+
+  const stopQueuedAudio = useCallback(() => {
+    for (const source of playingSourcesRef.current) {
+      try {
+        source.stop();
+      } catch {
+        // Source may already have finished.
+      }
+      try {
+        source.disconnect();
+      } catch {
+        // Source may already be disconnected.
+      }
+    }
+    playingSourcesRef.current = [];
+    nextPlayTimeRef.current = 0;
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const init = async () => {
+      try {
+        // Start microphone first so the Live session receives audio quickly after opening.
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+          },
+        });
+
+        if (!mounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+
+        // We must use an AudioContext to process the raw audio
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContextClass({ sampleRate: 16000 });
+        audioContextRef.current = ctx;
+
+        const source = ctx.createMediaStreamSource(stream);
+        sourceRef.current = source;
+
+        const tokenResponse = await fetch("/api/live-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenResponse.ok || !tokenData.token || !tokenData.model) {
+          throw new Error(tokenData.error || "Could not start Gemini Live.");
+        }
+
+        const ai = new GoogleGenAI({
+          apiKey: tokenData.token,
+          httpOptions: { apiVersion: "v1alpha" },
+        });
+        const session = await ai.live.connect({
+          model: tokenData.model,
+          config: tokenData.liveConfig ?? {
+            responseModalities: [Modality.AUDIO],
+          },
+          callbacks: {
+            onopen: () => {
+              if (!mounted) return;
+              setStatus("listening");
+              setTranscript("...");
+            },
+            onmessage: (message) => {
+              if (!mounted) return;
+              const serverContent = message.serverContent;
+              if (!serverContent) return;
+
+              if (serverContent.interrupted) {
+                stopQueuedAudio();
+              }
+
+              const inputTranscript = serverContent.inputTranscription?.text;
+              const outputTranscript = serverContent.outputTranscription?.text;
+              if (inputTranscript) {
+                setTranscript(inputTranscript);
+                if (serverContent.inputTranscription?.finished) {
+                  handleVoiceTranscript(inputTranscript);
+                }
+              }
+              if (outputTranscript) {
+                setTranscript(outputTranscript);
+                setStatus("speaking");
+              }
+
+              for (const part of serverContent.modelTurn?.parts ?? []) {
+                if (part.inlineData?.data) {
+                  setStatus("speaking");
+                  playAudioChunk(part.inlineData.data);
+                }
+                if (part.text) {
+                  setTranscript(part.text);
+                  setStatus("speaking");
+                }
+              }
+
+              if (serverContent.turnComplete || serverContent.waitingForInput) {
+                setStatus("listening");
+              }
+            },
+            onerror: (event) => {
+              console.error("Gemini Live error", event);
+              if (mounted) setTranscript("Gemini Live connection error.");
+            },
+            onclose: (event) => {
+              if (!mounted) return;
+              if (closeRequestedRef.current || event.code === 1000) {
+                setTranscript("Call ended");
+                setTimeout(onClose, 900);
+              } else {
+                setStatus("connecting");
+                setTranscript("Voice connection closed. Please start a new call.");
+              }
+            },
+          },
+        });
+
+        sessionRef.current = session;
+        
+        // ScriptProcessorNode is deprecated but easiest for raw PCM without a separate worklet file
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        processor.onaudioprocess = (e) => {
+          if (mutedRef.current) return;
+          if (!sessionRef.current) return;
+
+          const inputData = e.inputBuffer.getChannelData(0);
+          let audioLevel = 0;
+          
+          // Convert Float32 to Int16
+          const pcmData = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            audioLevel += Math.abs(s);
+            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          if (statusRef.current === "speaking" && audioLevel / inputData.length > 0.015) {
+            stopQueuedAudio();
+            setStatus("listening");
+          }
+          
+          // Convert to base64
+          const buffer = new Uint8Array(pcmData.buffer);
+          let binary = '';
+          for (let i = 0; i < buffer.byteLength; i++) {
+            binary += String.fromCharCode(buffer[i]);
+          }
+          const base64 = btoa(binary);
+
+          sessionRef.current.sendRealtimeInput({
+            audio: {
+              data: base64,
+              mimeType: "audio/pcm;rate=16000",
+            },
+          });
+        };
+
+        source.connect(processor);
+        processor.connect(ctx.destination);
+
+      } catch (err) {
+        console.error("Setup error:", err);
+        if (mounted) {
+          setTranscript("Failed to access microphone or connect to server.");
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+      closeRequestedRef.current = true;
+      if (sessionRef.current) sessionRef.current.close();
+      stopQueuedAudio();
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      if (processorRef.current && sourceRef.current) {
+        sourceRef.current.disconnect();
+        processorRef.current.disconnect();
+      }
+      if (audioContextRef.current) audioContextRef.current.close();
+    };
+  }, [handleVoiceTranscript, onClose, stopQueuedAudio]);
+
+  // Decode base64 24kHz Int16 to Float32 and play
+  const playAudioChunk = (base64: string) => {
+    if (!audioContextRef.current) return;
+    
+    const binaryStr = atob(base64);
+    const buffer = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      buffer[i] = binaryStr.charCodeAt(i);
+    }
+    
+    const int16Array = new Int16Array(buffer.buffer);
+    const float32Array = new Float32Array(int16Array.length);
+    for (let i = 0; i < int16Array.length; i++) {
+      float32Array[i] = int16Array[i] / 32768.0;
+    }
+    
+    // Playback queuing logic
+    const ctx = audioContextRef.current;
+    const audioBuffer = ctx.createBuffer(1, float32Array.length, 24000);
+    audioBuffer.getChannelData(0).set(float32Array);
+
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+    playingSourcesRef.current.push(source);
+    source.onended = () => {
+      playingSourcesRef.current = playingSourcesRef.current.filter((item) => item !== source);
+      try {
+        source.disconnect();
+      } catch {
+        // Source may already be disconnected.
+      }
+    };
+
+    if (nextPlayTimeRef.current < ctx.currentTime) {
+      nextPlayTimeRef.current = ctx.currentTime;
+    }
+    source.start(nextPlayTimeRef.current);
+    nextPlayTimeRef.current += audioBuffer.duration;
+  };
+
+  const endCall = () => {
+    closeRequestedRef.current = true;
+    if (sessionRef.current) {
+      sessionRef.current.close();
+    }
+    onClose();
+  };
+
+  return (
+    <div className={styles.liveCallOverlay}>
+      <div className={styles.liveCallPanel}>
+        <div className={styles.liveCallAvatar}>
+          {status !== "connecting" && (
+            <>
+              <div className={styles.liveCallRing} />
+              <div className={styles.liveCallRing} />
+              <div className={styles.liveCallRing} />
+            </>
+          )}
+          <div className={styles.liveCallAvatarInner}>
+            <Bot size={22} />
+          </div>
+        </div>
+
+        <div className={styles.liveCallInfo}>
+          <h3>Kade AI</h3>
+          <div className={styles.liveCallStatus}>
+            <span 
+              className={clsx(
+                styles.liveCallStatusDot, 
+                status === "listening" && styles.liveCallStatusDotListening,
+                status === "speaking" && styles.liveCallStatusDotSpeaking,
+                status === "connecting" && styles.liveCallStatusDotConnecting
+              )} 
+            />
+            {status === "connecting" ? "Connecting..." : status === "speaking" ? "Speaking..." : "Listening..."}
+          </div>
+        </div>
+
+        <div className={styles.liveCallTranscript}>
+          {transcript}
+        </div>
+
+        <div className={styles.liveCallActions}>
+          <button 
+            className={clsx(styles.liveCallMuteBtn, muted && styles.muted)} 
+            onClick={() => setMuted(!muted)}
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            <Mic size={20} />
+          </button>
+          <button className={styles.liveCallEndBtn} onClick={endCall} aria-label="End call">
+            <X size={24} />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

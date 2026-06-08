@@ -79,20 +79,30 @@ type SearchResult = {
 
 function normalizeSearchQuery(rawQuery: string) {
   const lower = rawQuery.toLowerCase();
-  if (/\b(cakes?|birthday cake|ribbon cake|bento cake|keik)\b/.test(lower)) return "birthday";
-  if (/\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/.test(lower)) return "roses";
-  if (/\b(chocolates?|choko|soklet)\b/.test(lower)) return "chocolate";
-  if (/\b(thagi|thaagi|parisu|gift)\b/.test(lower)) return "gift";
+  if (/\b(cakes?|birthday cake|birthday|ribbon cake|bento cake|keik)\b/.test(lower) || /කේක්|උපන්දින|கேக்|பிறந்தநாள்/.test(rawQuery)) return "birthday";
+  if (/\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/.test(lower) || /මල්|රෝස|பூ|மலர்|ரோஜா/.test(rawQuery)) return "roses";
+  if (/\b(biscuits?|cookies?|crackers?|biskut|munchee|maliban)\b/.test(lower) || /බිස්කට්|பிஸ்கட்/.test(rawQuery)) return "biscuits";
+  if (/\b(chocolates?|choko|soklet)\b/.test(lower) || /චොකලට්|சாக்லேட்/.test(rawQuery)) return "chocolate";
+  if (/\b(thagi|thaagi|parisu|gift)\b/.test(lower) || /තෑගි|තෑග්ග|பரிசு/.test(rawQuery)) return "gift";
   return rawQuery.trim() || "gift";
 }
 
 function relevanceKind(rawQuery: string) {
   const lower = rawQuery.toLowerCase();
-  if (/\b(cakes?|birthday cake|ribbon cake|bento cake|keik)\b/.test(lower)) return "cake";
-  if (/\b(biscuits?|cookies?|crackers?|oreo|munchee|maliban|biskut)\b/.test(lower)) return "biscuit";
-  if (/\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/.test(lower)) return "flower";
-  if (/\b(chocolates?|choko|soklet)\b/.test(lower)) return "chocolate";
+  if (/\b(cakes?|birthday cake|birthday|ribbon cake|bento cake|keik)\b/.test(lower) || /කේක්|උපන්දින|கேக்|பிறந்தநாள்/.test(rawQuery)) return "cake";
+  if (/\b(biscuits?|cookies?|crackers?|oreo|munchee|maliban|biskut)\b/.test(lower) || /බිස්කට්|பிஸ்கட்/.test(rawQuery)) return "biscuit";
+  if (/\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/.test(lower) || /මල්|රෝස|பூ|மலர்|ரோஜா/.test(rawQuery)) return "flower";
+  if (/\b(chocolates?|choko|soklet)\b/.test(lower) || /චොකලට්|சாக்லேட்/.test(rawQuery)) return "chocolate";
   return null;
+}
+
+function isShoppingQuery(rawQuery: string) {
+  const lower = rawQuery.toLowerCase();
+  return (
+    /\b(show|find|search|need|want|buy|send|deliver|gift|cake|flower|rose|biscuit|cookie|cracker|chocolate|hamper|cart|checkout|price|budget|hoyala|balanna|denna|ganna|yawanna)\b/.test(lower) ||
+    /හොය|බල|දෙන්න|ගන්න|යවන්න|කේක්|උපන්දින|මල්|රෝස|බිස්කට්|චොකලට්|තෑගි|තෑග්ග|මිල/.test(rawQuery) ||
+    /தேடு|காட்டு|வாங்க|அனுப்பு|கேக்|பிறந்தநாள்|பூ|மலர்|ரோஜா|பிஸ்கட்|சாக்லேட்|பரிசு|விலை/.test(rawQuery)
+  );
 }
 
 function productText(product: Product) {
@@ -231,11 +241,12 @@ export async function POST(req: NextRequest) {
   let messageForFallback = "";
 
   try {
-    const { message, history } = (await req.json()) as {
+    const { message, history, audio } = (await req.json()) as {
       message: string;
       history?: Content[];
+      audio?: { data: string; mimeType: string };
     };
-    messageForFallback = message;
+    messageForFallback = message || "audio message";
 
     const conversationHistory: Content[] = history ?? [];
 
@@ -243,12 +254,17 @@ export async function POST(req: NextRequest) {
     const { text, toolResults } = await chatWithTools(
       message,
       conversationHistory,
-      handleToolCall
+      handleToolCall,
+      audio
     );
 
     const products = extractProducts(toolResults);
     const delivery = extractDelivery(toolResults);
     const order = extractOrder(toolResults);
+
+    if (toolResults.length === 0 && isShoppingQuery(message)) {
+      return Response.json(await fallbackSearch(message));
+    }
 
     // Determine label based on what tools were called
     let label = null;

@@ -1,4 +1,5 @@
 import { GoogleGenAI, type Content, type FunctionDeclaration, Type } from "@google/genai";
+import { KADE_TEXT_SYSTEM_PROMPT } from "./personality";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
@@ -102,38 +103,7 @@ const mcpTools: FunctionDeclaration[] = [
 
 /* ── System prompt ── */
 
-const SYSTEM_PROMPT = `You are **Kade**, a premium AI shopping concierge for Kapruka.com — Sri Lanka's largest e-commerce and gifting platform.
-
-## Your Personality
-- Warm, helpful, and knowledgeable about Sri Lankan gifting culture
-- You speak fluent English, සිංහල (Sinhala), and Tanglish (Tamil-English mix)
-- Match the user's language — if they write in Sinhala, respond in Sinhala. If Tanglish, respond in Tanglish.
-- You're enthusiastic about helping find the perfect gift but never pushy
-- Use emoji occasionally to be friendly 🎁🌺🎂
-
-## Your Capabilities
-- Search Kapruka's full product catalog (cakes, flowers, chocolates, hampers, gifts, electronics, etc.)
-- Check delivery availability and costs for any city in Sri Lanka
-- Help build multi-item gift carts
-- Create orders and generate secure payment links
-- Track existing orders
-- Suggest gift ideas based on occasion, budget, and recipient
-
-## Guidelines
-- Always search for products when the user describes what they want — don't make up products
-- When showing search results, briefly describe the top picks and mention prices
-- Proactively suggest complementary items (e.g., "Would you like to add a card or flowers with that cake?")
-- When a user mentions a city, remember it for delivery
-- Be concise — keep responses under 3-4 sentences unless the user asks for detail
-- If a search returns no results, suggest alternative search terms
-- For checkout, collect: recipient name, phone, delivery address & city, and optionally gift message
-- Always format prices as "Rs. X,XXX" or "LKR X,XXX"
-
-## Important
-- You work with REAL products from Kapruka's live catalog
-- Products, prices, and stock levels are real-time
-- Never invent or hallucinate product names, prices, or availability
-- If you're unsure, search again rather than guessing`;
+const SYSTEM_PROMPT = KADE_TEXT_SYSTEM_PROMPT;
 
 function sriLankaToday() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -235,13 +205,25 @@ export async function* streamChat(
 export async function chatWithTools(
   message: string,
   history: Content[],
-  onToolCall: (name: string, args: Record<string, unknown>) => Promise<unknown>
+  onToolCall: (name: string, args: Record<string, unknown>) => Promise<unknown>,
+  audio?: { data: string; mimeType: string }
 ): Promise<{ text: string; toolResults: Array<{ name: string; result: unknown }> }> {
   const modelName = chooseModel(message, history.length);
 
+  const parts = [];
+  if (message) parts.push({ text: message });
+  if (audio) {
+    parts.push({
+      inlineData: {
+        data: audio.data,
+        mimeType: audio.mimeType,
+      },
+    });
+  }
+
   let currentContents: Content[] = [
     ...history,
-    { role: "user", parts: [{ text: message }] },
+    { role: "user", parts },
   ];
 
   const toolResults: Array<{ name: string; result: unknown }> = [];

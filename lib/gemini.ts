@@ -11,7 +11,7 @@ const mcpTools: FunctionDeclaration[] = [
   {
     name: "search_products",
     description:
-      "Search for products on Kapruka, Sri Lanka's largest e-commerce platform. Use this whenever the user wants to find, browse, or buy products. Supports filtering by price, category, stock, etc.",
+      "Search for products on Kapruka, Sri Lanka's largest e-commerce platform. Use this only when the user has a clear product/category intent. Do not search for products the user says the recipient dislikes; ask a clarification instead when preferences are broad, such as 'likes to eat'. Supports filtering by price, category, stock, etc.",
     parameters: {
       type: Type.OBJECT,
       properties: {

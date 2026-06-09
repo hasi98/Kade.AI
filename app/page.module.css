@@ -1848,8 +1848,13 @@ select.checkoutInput {
 }
 
 @media (max-width: 1020px) {
-  .shell {
+  .shell,
+  .shell.cartCollapsed,
+  .shell.detailCollapsed,
+  .shell.cartCollapsed.detailCollapsed {
     grid-template-columns: 1fr;
+    width: 100vw;
+    min-width: 0;
   }
 
   .cartSidebar {
@@ -1861,11 +1866,28 @@ select.checkoutInput {
   }
 
   .chatPane {
+    width: 100%;
+    min-width: 0;
     height: 100%;
+  }
+
+  .topbar,
+  .messages,
+  .composer,
+  .liveCallOverlay {
+    max-width: 100vw;
   }
 
   .commandDeck {
     grid-template-columns: 1fr;
+  }
+
+  .message,
+  .messageBubble,
+  .productGrid,
+  .commandDeck {
+    max-width: 100%;
+    min-width: 0;
   }
 }
 
@@ -1873,6 +1895,28 @@ select.checkoutInput {
   .topbar {
     padding: 0 14px;
     min-height: 56px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .brand {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .brandText {
+    min-width: 0;
+  }
+
+  .brand h1,
+  .brandText span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .livePill {
+    display: none;
   }
 
   .navTabs {
@@ -1907,6 +1951,15 @@ select.checkoutInput {
 
   .message {
     gap: 8px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .messageUser {
+    width: auto;
+    max-width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
   }
 
   .messageAvatar {
@@ -1916,15 +1969,22 @@ select.checkoutInput {
 
   .messageBubble {
     padding: 10px 12px;
+    max-width: calc(100vw - 64px);
+    overflow-wrap: anywhere;
   }
 
   .composer {
     margin: 0 14px 14px;
-    grid-template-columns: 36px 1fr 36px 40px;
+    max-width: calc(100vw - 28px);
+    grid-template-columns: 34px minmax(0, 1fr) 34px 38px;
   }
 
   .productGrid {
     grid-template-columns: 1fr;
+  }
+
+  .productCard {
+    min-width: 0;
   }
 }
 

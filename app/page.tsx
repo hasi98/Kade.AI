@@ -317,9 +317,11 @@ export default function Home() {
           text: data.reply || "I couldn't process that. Try again?",
           products: data.products?.length ? data.products : undefined,
           label: data.label || "AI_RECOMMENDATION",
-          quickReplies: data.products?.length
-            ? ["Show more options", "Check delivery cost", "Add all to cart"]
-            : ["Browse cakes 🎂", "Find flowers 🌺", "Chocolate gifts 🍫", "Track my order"],
+          quickReplies: data.quickReplies?.length
+            ? data.quickReplies
+            : data.products?.length
+              ? ["Show more options", "Check delivery cost", "Add all to cart"]
+              : ["Browse cakes", "Chocolate gifts", "Biscuit hampers", "Track my order"],
         };
 
         setMessages((prev) => [...prev, assistantMessage]);

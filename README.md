@@ -1,4 +1,4 @@
-# 🌺 Kade AI — Your Sri Lankan Shopping Companion
+# 🌺 Kade AI - Your Sri Lankan Shopping Companion
 
 > **Built for the Kapruka Agent Challenge 2026**  
 > *"After talking to Kade, you'll never go back to the Kapruka website."*
@@ -11,7 +11,7 @@
 ![Kapruka MCP](https://img.shields.io/badge/Kapruka-MCP_Connected-8B0000?style=for-the-badge)
 ![Vercel](https://img.shields.io/badge/Hosted_on-Vercel-000000?style=for-the-badge&logo=vercel)
 
-**[🛍️ Live Demo](https://your-demo-url.vercel.app)** &nbsp;|&nbsp; **[📹 Demo Video](#)** &nbsp;|&nbsp; **[🐛 Report Issue](https://github.com/hasi98/kade-ai/issues)**
+**[🛍️ Live Demo](https://kade-ai.vercel.app/)** &nbsp;|&nbsp;  **[🐛 Report Issue](https://github.com/hasi98/Kade.AI/issues)**
 
 </div>
 
@@ -19,14 +19,14 @@
 
 ## ✨ What is Kade AI?
 
-Kade AI is a full-screen, conversational AI shopping agent built on top of [Kapruka](https://www.kapruka.com) — Sri Lanka's largest e-commerce platform. It's not a chatbot. It's not a search engine. It's your warm, friendly Sri Lankan shopping companion that speaks your language — **Sinhala, Tamil, Singlish, and Tanglish** — and genuinely helps you find the perfect thing.
+Kade AI is a full-screen, conversational AI shopping agent built on top of [Kapruka](https://www.kapruka.com) - Sri Lanka's largest e-commerce platform. It's not a chatbot. It's not a search engine. It's your warm, friendly Sri Lankan shopping companion that speaks your language - **Sinhala, Tamil, Singlish, and Tanglish** - and genuinely helps you find the perfect thing.
 
-Think of Kade as that one friend who knows every shop in Colombo and actually wants to help you find the right gift — not just push products at you.
+Think of Kade as that one friend who knows every shop in Colombo and actually wants to help you find the right gift - not just push products at you.
 
 ```
 User:  "Machan I messed up with my wife, need to fix this fast 😭"
 
-Kade:  "Aiyo machan... okay okay, don't panic — I got you 😄
+Kade:  "Aiyo machan... okay okay, don't panic - I got you 😄
         Flowers alone won't cut it, but flowers + a heartfelt 
         personal note? That hits different. I'll even help you 
         write the note. Does she prefer roses or something more 
@@ -38,41 +38,41 @@ Kade:  "Aiyo machan... okay okay, don't panic — I got you 😄
 ## 🎯 Features
 
 ### 🗣️ Natural Language Shopping
-Talk to Kade the way you actually talk — mix Sinhala, English, Singlish, and Tanglish freely. Kade understands and responds in kind.
+Talk to Kade the way you actually talk - mix Sinhala, English, Singlish, and Tanglish freely. Kade understands and responds in kind.
 
 ### 🧠 Smart Multi-Model AI Routing
 Kade uses multiple models intelligently based on what you need:
-- **Gemini 3.1 Flash** — fast, snappy responses for everyday chat
-- **Gemma 4 31B** — deep reasoning for complex gift advice and emotional situations
-- **Gemma 4 26B** — lightweight intent classifier to decide routing
-- **Gemini 3.1 Flash Live** — real-time voice conversations (fully duplex!)
+- **Gemini 3.1 Flash** - fast, snappy responses for everyday chat
+- **Gemma 4 31B** - deep reasoning for complex gift advice and emotional situations
+- **Gemma 4 26B** - lightweight intent classifier to decide routing
+- **Gemini 3.1 Flash Live** - real-time voice conversations (fully duplex!)
 
-Complex gift tasks also use a **Google Search grounding step** before the final answer — so Kade researches what people like before searching Kapruka.
+Complex gift tasks also use a **Google Search grounding step** before the final answer - so Kade researches what people like before searching Kapruka.
 
-### 🛒 Full Shopping Flow — End to End
+### 🛒 Full Shopping Flow - End to End
 - 🔍 Search 120,000+ products on Kapruka live
 - 📂 Browse all Kapruka categories
 - 🏙️ Delivery city lookup across Sri Lanka
 - 📦 Real-time delivery availability and quotes
 - 🎁 Gift wrap, personal note, and extras
-- ✅ Guest checkout — no account needed, 60-minute locked prices
+- ✅ Guest checkout - no account needed, 60-minute locked prices
 - 📍 Track existing orders with live status updates
 
 ### 🎤 Live Voice Mode
-Tap the mic and just talk. Kade listens, thinks, and talks back in real time using **Gemini Live API with ephemeral tokens** — no separate voice server needed. Full duplex — interrupt anytime.
+Tap the mic and just talk. Kade listens, thinks, and talks back in real time using **Gemini Live API with ephemeral tokens** - no separate voice server needed. Full duplex - interrupt anytime.
 
 ### 🌗 Smart Theme Switching
-- Uses the browser's **Ambient Light Sensor** if available — theme switches automatically based on room lighting
+- Uses the browser's **Ambient Light Sensor** if available - theme switches automatically based on room lighting
 - Falls back to your **OS dark/light preference**
 - Manual toggle always available
 
 ### 💾 Persistent Memory
-Kade remembers your cart, preferences, and chat history in the browser — even after a refresh. Returns are greeted warmly:
-> *"හෙලෝ, welcome back! Last time you were looking at birthday cakes ne — did that work out? 🌺"*
+Kade remembers your cart, preferences, and chat history in the browser - even after a refresh. Returns are greeted warmly:
+> *"හෙලෝ, welcome back! Last time you were looking at birthday cakes ne - did that work out? 🌺"*
 
 ### 🌺 Distinctly Sri Lankan
 - Sinhala, Tamil, Singlish, and Tanglish support throughout
-- Warm, friendly personality — not corporate, not robotic
+- Warm, friendly personality - not corporate, not robotic
 - Understands local context: New Year gifts, Avurudu, corporate hampers, sending gifts overseas
 
 ---
@@ -122,30 +122,10 @@ Voice runs entirely through the browser using ephemeral tokens, with no separate
 | Real-time voice | `gemini-3.1-flash-live-preview` |
 | Voice fallback | `gemini-2.5-flash-native-audio-latest` |
 
-All models used are on the **free tier** of Google AI Studio. No paid API usage.
+All models used are from Google AI Studio.
 
 ---
 
-## 🛒 Kapruka MCP Tools
-
-Kade connects live to Kapruka through the public MCP endpoint:
-
-```
-https://mcp.kapruka.com/mcp
-```
-
-| Tool | What it does |
-|------|-------------|
-| `kapruka_search_products` | Search 120,000+ products live |
-| `kapruka_list_categories` | Browse all product categories |
-| `kapruka_list_delivery_cities` | Find delivery cities across Sri Lanka |
-| `kapruka_check_delivery` | Check delivery availability and flat rate |
-| `kapruka_create_order` | Create guest checkout link (no account needed) |
-| `kapruka_track_order` | Track live order status |
-
-No Kapruka API key required.
-
----
 
 ## 🛠️ Tech Stack
 
@@ -167,7 +147,7 @@ No Kapruka API key required.
 
 ### Prerequisites
 - Node.js 18+
-- A [Google AI Studio](https://aistudio.google.com) API key (free)
+- A [Google AI Studio](https://aistudio.google.com) API key
 
 ### Installation
 
@@ -193,7 +173,7 @@ Open [http://localhost:3000](http://localhost:3000) to see Kade AI.
 # Required
 GEMINI_API_KEY=your_google_ai_studio_key
 
-# Optional — override default voice model
+# Optional - override default voice model
 GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 ```
 
@@ -201,7 +181,7 @@ GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 
 ## 🌍 Deployment
 
-The entire app deploys as a **single Next.js app on Vercel** — no extra services needed.
+The entire app deploys as a **single Next.js app on Vercel** - no extra services needed.
 
 ```bash
 # Install Vercel CLI
@@ -301,7 +281,7 @@ gemma-4-31b presents with warm reasoning
 
 ## 🏆 Built for Kapruka Agent Challenge 2026
 
-This project is an entry for the [Kapruka Agent Challenge](https://www.kapruka.com/contactUs/agentChallenge.html) — a competition to build the best AI shopping agent on Kapruka's MCP server.
+This project is an entry for the [Kapruka Agent Challenge](https://www.kapruka.com/contactUs/agentChallenge.html) - a competition to build the best AI shopping agent on Kapruka's MCP server.
 
 **Scoring criteria met:**
 
@@ -319,7 +299,7 @@ This project is an entry for the [Kapruka Agent Challenge](https://www.kapruka.c
 
 ## 👨‍💻 Built By
 
-**Hasith Lakshan** — Self-taught full-stack developer from Sri Lanka 🇱🇰
+**Hasith Lakshan** - Self-taught full-stack developer from Sri Lanka 🇱🇰
 
 - 🌐 [hasithlakshan.dev](https://hasithlakshan.dev)
 - 💻 [github.com/hasi98](https://github.com/hasi98)
@@ -329,11 +309,11 @@ This project is an entry for the [Kapruka Agent Challenge](https://www.kapruka.c
 
 ## 📄 License
 
-MIT License — feel free to learn from it, but please don't submit it as your own competition entry 😄
+MIT License
 
 ---
 
 <div align="center">
   <p>Made with ❤️ and a lot of <em>aiyo</em> moments in Sri Lanka 🌺</p>
-  <p><strong>Kade AI — Shop Sri Lanka, your way.</strong></p>
+  <p><strong>Kade AI - Shop Sri Lanka, your way.</strong></p>
 </div>

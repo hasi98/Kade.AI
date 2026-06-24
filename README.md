@@ -1,26 +1,85 @@
-# Kade AI
+# 🌺 Kade AI — Your Sri Lankan Shopping Companion
 
-Kade AI is a full-screen AI shopping companion for Kapruka, built for the Kapruka Agent Challenge 2026. It lets customers chat naturally, discover real Kapruka products, check delivery, manage a cart, and move toward guest checkout through a secure Kapruka payment link.
+> **Built for the Kapruka Agent Challenge 2026**  
+> *"After talking to Kade, you'll never go back to the Kapruka website."*
 
-The goal is simple: make shopping on Kapruka feel like talking to a helpful Sri Lankan friend instead of filling a form or scrolling through search results.
+<div align="center">
 
-## Highlights
+![Kade AI](https://img.shields.io/badge/Kade_AI-Shopping_Agent-E8A020?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js_16-App_Router-000000?style=for-the-badge&logo=nextdotjs)
+![Gemini](https://img.shields.io/badge/Google_Gemini-Multi--Model-4285F4?style=for-the-badge&logo=google)
+![Kapruka MCP](https://img.shields.io/badge/Kapruka-MCP_Connected-8B0000?style=for-the-badge)
+![Vercel](https://img.shields.io/badge/Hosted_on-Vercel-000000?style=for-the-badge&logo=vercel)
 
-- Full-screen conversational shopping UI
-- Live Kapruka MCP product search
-- Delivery city lookup and delivery quote support
-- Cart, product detail panel, checkout/delivery details panel
-- Guest checkout link creation through Kapruka MCP
-- Order tracking support
-- Text chat with model routing
-- Browser-based Gemini Live voice mode using ephemeral tokens
-- Sinhala, Tamil, Singlish, Tanglish, and English-oriented personality rules
-- Chat history and local browser persistence
-- Vercel-ready Next.js app
+**[🛍️ Live Demo](https://your-demo-url.vercel.app)** &nbsp;|&nbsp; **[📹 Demo Video](#)** &nbsp;|&nbsp; **[🐛 Report Issue](https://github.com/hasi98/kade-ai/issues)**
 
-## Current Architecture
+</div>
 
-```text
+---
+
+## ✨ What is Kade AI?
+
+Kade AI is a full-screen, conversational AI shopping agent built on top of [Kapruka](https://www.kapruka.com) — Sri Lanka's largest e-commerce platform. It's not a chatbot. It's not a search engine. It's your warm, friendly Sri Lankan shopping companion that speaks your language — **Sinhala, Tamil, Singlish, and Tanglish** — and genuinely helps you find the perfect thing.
+
+Think of Kade as that one friend who knows every shop in Colombo and actually wants to help you find the right gift — not just push products at you.
+
+```
+User:  "Machan I messed up with my wife, need to fix this fast 😭"
+
+Kade:  "Aiyo machan... okay okay, don't panic — I got you 😄
+        Flowers alone won't cut it, but flowers + a heartfelt 
+        personal note? That hits different. I'll even help you 
+        write the note. Does she prefer roses or something more 
+        colourful? 🌸"
+```
+
+---
+
+## 🎯 Features
+
+### 🗣️ Natural Language Shopping
+Talk to Kade the way you actually talk — mix Sinhala, English, Singlish, and Tanglish freely. Kade understands and responds in kind.
+
+### 🧠 Smart Multi-Model AI Routing
+Kade uses multiple models intelligently based on what you need:
+- **Gemini 3.1 Flash** — fast, snappy responses for everyday chat
+- **Gemma 4 31B** — deep reasoning for complex gift advice and emotional situations
+- **Gemma 4 26B** — lightweight intent classifier to decide routing
+- **Gemini 3.1 Flash Live** — real-time voice conversations (fully duplex!)
+
+Complex gift tasks also use a **Google Search grounding step** before the final answer — so Kade researches what people like before searching Kapruka.
+
+### 🛒 Full Shopping Flow — End to End
+- 🔍 Search 120,000+ products on Kapruka live
+- 📂 Browse all Kapruka categories
+- 🏙️ Delivery city lookup across Sri Lanka
+- 📦 Real-time delivery availability and quotes
+- 🎁 Gift wrap, personal note, and extras
+- ✅ Guest checkout — no account needed, 60-minute locked prices
+- 📍 Track existing orders with live status updates
+
+### 🎤 Live Voice Mode
+Tap the mic and just talk. Kade listens, thinks, and talks back in real time using **Gemini Live API with ephemeral tokens** — no separate voice server needed. Full duplex — interrupt anytime.
+
+### 🌗 Smart Theme Switching
+- Uses the browser's **Ambient Light Sensor** if available — theme switches automatically based on room lighting
+- Falls back to your **OS dark/light preference**
+- Manual toggle always available
+
+### 💾 Persistent Memory
+Kade remembers your cart, preferences, and chat history in the browser — even after a refresh. Returns are greeted warmly:
+> *"හෙලෝ, welcome back! Last time you were looking at birthday cakes ne — did that work out? 🌺"*
+
+### 🌺 Distinctly Sri Lankan
+- Sinhala, Tamil, Singlish, and Tanglish support throughout
+- Warm, friendly personality — not corporate, not robotic
+- Understands local context: New Year gifts, Avurudu, corporate hampers, sending gifts overseas
+
+---
+
+## 🏗️ Architecture
+
+```
 Browser
   |
   |-- Next.js UI
@@ -34,9 +93,11 @@ Browser
   |       - delivery/order/tracking tool calls
   |       - response cleanup
   |
-  |-- Live voice token API
+  |-- Live Voice Token API
   |     app/api/live-token/route.ts
-  |       - creates short-lived Gemini Live tokens
+  |       - creates short-lived Gemini Live ephemeral tokens
+  |       - browser connects directly to Gemini Live
+  |       - no separate voice server needed
   |
   |-- Gemini / Gemma
   |     lib/gemini.ts
@@ -47,176 +108,232 @@ Browser
         https://mcp.kapruka.com/mcp
 ```
 
-Voice does not use a separate server in this version. The browser connects to Gemini Live using an ephemeral token created by the Next.js API route.
+Voice runs entirely through the browser using ephemeral tokens, with no separate voice server and no extra hosting costs.
 
-## Model Stack
+---
 
-The current model constants live in [lib/models.ts](lib/models.ts).
+## 🤖 Model Stack
 
 | Purpose | Model |
-| --- | --- |
+|---------|-------|
 | Main text chat | `gemini-3.1-flash-preview` |
-| Complex reasoning | `gemma-4-31b-it` |
+| Complex reasoning + gift advice | `gemma-4-31b-it` |
 | Intent classification | `gemma-4-26b-a4b-it` |
-| Voice | `gemini-3.1-flash-live-preview` |
+| Real-time voice | `gemini-3.1-flash-live-preview` |
 | Voice fallback | `gemini-2.5-flash-native-audio-latest` |
 
-Complex gift tasks also use a separate Gemini-powered research step with Google Search grounding before the final complex answer is generated.
+All models used are on the **free tier** of Google AI Studio. No paid API usage.
 
-## Kapruka MCP Tools
+---
 
-Kade talks to Kapruka through the public MCP endpoint:
+## 🛒 Kapruka MCP Tools
 
-```text
+Kade connects live to Kapruka through the public MCP endpoint:
+
+```
 https://mcp.kapruka.com/mcp
 ```
 
-The app uses MCP tool calls for:
+| Tool | What it does |
+|------|-------------|
+| `kapruka_search_products` | Search 120,000+ products live |
+| `kapruka_list_categories` | Browse all product categories |
+| `kapruka_list_delivery_cities` | Find delivery cities across Sri Lanka |
+| `kapruka_check_delivery` | Check delivery availability and flat rate |
+| `kapruka_create_order` | Create guest checkout link (no account needed) |
+| `kapruka_track_order` | Track live order status |
 
-- Product search
-- Category lookup
-- Delivery city lookup
-- Delivery quote checks
-- Guest checkout link creation
-- Order tracking
+No Kapruka API key required.
 
-No Kapruka API key is required.
+---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technology |
-| --- | --- |
+|-------|-----------|
 | Framework | Next.js 16 App Router |
 | UI | React 19, CSS Modules |
+| Animations | Framer Motion |
+| Icons | Lucide React |
 | AI SDK | `@google/genai` |
-| Icons | `lucide-react` |
-| Animation | `framer-motion` |
 | Shopping backend | Kapruka MCP |
 | Voice | Browser-to-Gemini Live with ephemeral tokens |
-| Storage | Browser local storage for local chat/cart state |
-| Hosting target | Vercel |
+| Storage | Browser localStorage (cart, chat history, preferences) |
+| Hosting | Vercel (single deployment, no extra services) |
 
-## Environment Variables
+---
 
-Create `.env.local` in the project root:
+## 🚀 Getting Started
 
-```env
-GEMINI_API_KEY=your_google_ai_studio_key
-```
+### Prerequisites
+- Node.js 18+
+- A [Google AI Studio](https://aistudio.google.com) API key (free)
 
-Optional:
-
-```env
-GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
-```
-
-There is no public voice WebSocket URL in the current architecture.
-
-## Local Development
+### Installation
 
 ```bash
+# Clone the repo
+git clone https://github.com/hasi98/kade-ai.git
+cd kade-ai
+
+# Install dependencies
 npm install
+
+# Create .env.local and add your GEMINI_API_KEY
+
+# Run the development server
 npm run dev
 ```
 
-Open:
+Open [http://localhost:3000](http://localhost:3000) to see Kade AI.
 
-```text
-http://localhost:3000
-```
-
-Production build:
-
-```bash
-npm run build
-npm run start
-```
-
-## Deployment
-
-The app is designed to run on Vercel as a single Next.js deployment.
-
-In Vercel, set:
+### Environment Variables
 
 ```env
+# Required
 GEMINI_API_KEY=your_google_ai_studio_key
-```
 
-Optional:
-
-```env
+# Optional — override default voice model
 GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 ```
 
-Recommended Vercel import settings:
+---
+
+## 🌍 Deployment
+
+The entire app deploys as a **single Next.js app on Vercel** — no extra services needed.
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel --prod
+```
+
+Set in Vercel dashboard:
+
+| Variable | Value |
+|----------|-------|
+| `GEMINI_API_KEY` | Your Google AI Studio key |
+| `GEMINI_LIVE_MODEL` | `gemini-3.1-flash-live-preview` (optional) |
+
+Recommended Vercel settings:
 
 | Setting | Value |
-| --- | --- |
+|---------|-------|
 | Framework preset | Next.js |
 | Build command | `npm run build` |
 | Output directory | Next.js default |
 | Install command | `npm install` |
 
-No additional voice service is needed for the current voice implementation.
+---
 
-## Project Structure
+## 📁 Project Structure
 
-```text
+```
 kade-ai/
   app/
     api/
-      agent/route.ts
-      categories/route.ts
-      chat/route.ts
-      cities/route.ts
-      delivery/route.ts
-      live-token/route.ts
-      order/route.ts
-      search/route.ts
-      track/route.ts
+      agent/route.ts         # Agent orchestration
+      categories/route.ts    # Category listing
+      chat/route.ts          # Main chat + MCP dispatch
+      cities/route.ts        # Delivery city lookup
+      delivery/route.ts      # Delivery availability
+      live-token/route.ts    # Gemini Live ephemeral tokens
+      order/route.ts         # Order creation
+      search/route.ts        # Product search
+      track/route.ts         # Order tracking
     globals.css
     layout.tsx
     page.module.css
-    page.tsx
+    page.tsx                 # Main shopping UI
   lib/
-    agent.ts
-    complex.ts
-    gemini.ts
-    intent.ts
-    mcp.ts
-    models.ts
-    personality.ts
-    types.ts
+    agent.ts                 # Agent logic
+    complex.ts               # Complex gift reasoning prompt
+    gemini.ts                # Gemini/Gemma calls + grounding
+    intent.ts                # Intent classifier + routing rules
+    mcp.ts                   # Kapruka MCP client
+    models.ts                # Model constants
+    personality.ts           # Kade system prompt + behavior rules
+    types.ts                 # Shared TypeScript types
   package.json
   next.config.ts
   tsconfig.json
 ```
 
-## Key Files
+---
 
-- [app/page.tsx](app/page.tsx): Main shopping UI, cart/product/checkout panels, voice overlay
-- [app/api/chat/route.ts](app/api/chat/route.ts): Main chat orchestration and Kapruka tool dispatch
-- [app/api/live-token/route.ts](app/api/live-token/route.ts): Gemini Live ephemeral token endpoint
-- [lib/gemini.ts](lib/gemini.ts): Gemini/Gemma calls, tool declarations, grounded research helper
-- [lib/intent.ts](lib/intent.ts): Intent classifier and direct-search routing rules
-- [lib/complex.ts](lib/complex.ts): Complex gift reasoning and smart search translation prompt
-- [lib/personality.ts](lib/personality.ts): Kade system prompt and voice/text behavior rules
-- [lib/mcp.ts](lib/mcp.ts): Kapruka MCP client
+## 🧠 How Kade Thinks
 
-## Current Behavior Notes
+### Simple request → fast path
+```
+"Show me chocolate cakes under Rs. 3000"
+        ↓
+gemma-4-26b classifies → SIMPLE
+        ↓
+gemini-3.1-flash-preview searches Kapruka directly
+        ↓
+Results shown instantly
+```
 
-- Simple product searches route to Gemini Flash and Kapruka product search.
-- Complex emotional/gift scenarios route through complex reasoning.
-- If the user has already provided enough product detail, routing skips unnecessary clarification and searches directly.
-- Foodie and other personality traits are translated into concrete Kapruka search terms before product search.
-- Voice mode uses the selected Gemini Live voice from the UI and defaults to `Aoede`.
+### Complex request → reasoning path
+```
+"What gift would my girlfriend love for her birthday?
+ She's really into self care and cozy things."
+        ↓
+gemma-4-26b classifies → COMPLEX
+        ↓
+gemma-4-31b profiles the recipient from conversation
+        ↓
+Google Search grounding researches gift ideas for
+"self care cozy gifts women Sri Lanka"
+        ↓
+Translates to Kapruka search terms:
+"luxury spa gift set", "Spa Ceylon", "wellness hamper"
+        ↓
+Kapruka MCP returns real products
+        ↓
+gemma-4-31b presents with warm reasoning
+```
 
-## Built For
+---
 
-Kapruka Agent Challenge 2026.
+## 🏆 Built for Kapruka Agent Challenge 2026
 
-The judging target is a hosted, full-screen shopping assistant where customers can browse products, get delivery quotes, and complete checkout through Kapruka.
+This project is an entry for the [Kapruka Agent Challenge](https://www.kapruka.com/contactUs/agentChallenge.html) — a competition to build the best AI shopping agent on Kapruka's MCP server.
 
-## License
+**Scoring criteria met:**
 
-MIT
+| Criteria | Points | How Kade addresses it |
+|----------|--------|-----------------------|
+| Experience & polish | 30 | Full-screen 3-panel UI, smooth animations, warm UX |
+| Visual richness | 20 | Product image cards, carousels, delivery info panels |
+| Personality | 15 | Warm Sri Lankan friend, Singlish, empathy first |
+| Genuinely helpful | 15 | Smart gift profiling, Google Search + MCP combined |
+| End-to-end checkout | 15 | Guest checkout link, order tracking |
+| Creativity | 5 | Live voice, ambient light sensor, multi-model routing |
+| **Bonus** | +extra | Sinhala, Tamil, Singlish, Tanglish support |
+
+---
+
+## 👨‍💻 Built By
+
+**Hasith Lakshan** — Self-taught full-stack developer from Sri Lanka 🇱🇰
+
+- 🌐 [hasithlakshan.dev](https://hasithlakshan.dev)
+- 💻 [github.com/hasi98](https://github.com/hasi98)
+- 🛍️ [CloudPipe](https://cloudpipe.app) · [Portlora](https://portlora.com)
+
+---
+
+## 📄 License
+
+MIT License — feel free to learn from it, but please don't submit it as your own competition entry 😄
+
+---
+
+<div align="center">
+  <p>Made with ❤️ and a lot of <em>aiyo</em> moments in Sri Lanka 🌺</p>
+  <p><strong>Kade AI — Shop Sri Lanka, your way.</strong></p>
+</div>

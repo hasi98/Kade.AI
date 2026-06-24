@@ -128,6 +128,30 @@
   gap: 8px;
 }
 
+.actionPill {
+  min-height: 32px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.actionPill:hover,
+.actionPillActive {
+  border-color: var(--border-accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
 .livePill {
   height: 32px;
   padding: 0 11px;
@@ -539,6 +563,113 @@
   gap: 16px;
 }
 
+.chatHistoryPanel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-card);
+  animation: fadeInUp 240ms ease;
+}
+
+.historyScreen {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  background: var(--bg-primary);
+}
+
+.chatHistoryPanelFull {
+  min-height: 100%;
+  align-content: flex-start;
+}
+
+.chatHistoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chatHistoryHeader div {
+  display: grid;
+  gap: 2px;
+}
+
+.chatHistoryHeader span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chatHistoryHeader strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.chatHistoryList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.chatHistoryItem {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  text-align: left;
+  transition: all var(--transition);
+}
+
+.chatHistoryItem:hover,
+.chatHistoryItemActive {
+  border-color: var(--border-accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.chatHistoryItem svg {
+  color: var(--accent);
+}
+
+.chatHistoryItem span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chatHistoryItem strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatHistoryItem small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.chatHistoryEmpty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .commandDeck {
   position: relative;
   overflow: hidden;
@@ -739,6 +870,17 @@
   border-radius: 4px;
   background: var(--bg-tertiary);
   font-size: 12px;
+}
+
+.streamingCursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: cursorBlink 900ms steps(2, start) infinite;
 }
 
 /* ── Typing indicator ── */
@@ -1919,6 +2061,23 @@ select.checkoutInput {
     display: none;
   }
 
+  .topbarActions {
+    gap: 5px;
+  }
+
+  .actionPill {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .actionPill span {
+    display: none;
+  }
+
   .navTabs {
     display: none;
   }
@@ -1930,6 +2089,22 @@ select.checkoutInput {
 
   .commandDeck {
     padding: 12px;
+  }
+
+  .chatHistoryPanel {
+    padding: 12px;
+  }
+
+  .historyScreen {
+    padding: 14px;
+  }
+
+  .chatHistoryHeader {
+    align-items: flex-start;
+  }
+
+  .chatHistoryList {
+    grid-template-columns: 1fr;
   }
 
   .commandHero h2 {
@@ -2125,6 +2300,24 @@ select.checkoutInput {
   animation: pulse 0.8s ease-in-out infinite;
 }
 
+.liveVoiceSelect {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.liveVoiceSelect:focus {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px rgba(212, 148, 26, 0.12);
+}
+
 .liveCallTranscript {
   position: relative;
   z-index: 1;
@@ -2213,11 +2406,15 @@ select.checkoutInput {
 
   .liveCallPanel {
     grid-template-columns: auto 1fr auto;
-    min-height: 92px;
+    min-height: 118px;
   }
 
   .liveCallInfo {
     grid-column: 2;
+  }
+
+  .liveVoiceSelect {
+    max-width: 180px;
   }
 
   .liveCallTranscript {
@@ -2230,5 +2427,16 @@ select.checkoutInput {
   .liveCallActions {
     grid-column: 3;
     grid-row: 1;
+  }
+}
+
+@keyframes cursorBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
   }
 }

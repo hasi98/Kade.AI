@@ -1,9 +1,11 @@
 import { GoogleGenAI, type Content, type FunctionDeclaration, Type } from "@google/genai";
+import { MODELS, type TextModel } from "./models";
 import { KADE_TEXT_SYSTEM_PROMPT } from "./personality";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
 const ai = new GoogleGenAI({ apiKey });
+const CHAT_TEMPERATURE = 0.9;
 
 /* ── MCP tool function declarations for Gemini ── */
 
@@ -11,7 +13,7 @@ const mcpTools: FunctionDeclaration[] = [
   {
     name: "search_products",
     description:
-      "Search for products on Kapruka, Sri Lanka's largest e-commerce platform. Use this only when the user has a clear product/category intent. Do not search for products the user says the recipient dislikes; ask a clarification instead when preferences are broad, such as 'likes to eat'. Supports filtering by price, category, stock, etc.",
+      "Search for products on Kapruka, Sri Lanka's largest e-commerce platform. Use this only when the user has a clear product/category intent. Never use this for greetings, thanks, small talk, or vague setup messages like 'hello' or 'can you help me'. Do not search for products the user says the recipient dislikes; ask a clarification instead when preferences are broad, such as 'likes to eat'. Supports filtering by price, category, stock, etc.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -103,8 +105,6 @@ const mcpTools: FunctionDeclaration[] = [
 
 /* ── System prompt ── */
 
-const SYSTEM_PROMPT = KADE_TEXT_SYSTEM_PROMPT;
-
 function sriLankaToday() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Colombo",
@@ -117,33 +117,39 @@ function sriLankaToday() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function systemPrompt() {
-  return `${SYSTEM_PROMPT}\n\nCurrent Sri Lanka date: ${sriLankaToday()}. Resolve relative dates like today and tomorrow using Asia/Colombo time.`;
+function systemPrompt(basePrompt = KADE_TEXT_SYSTEM_PROMPT) {
+  return `${basePrompt}\n\nCurrent Sri Lanka date: ${sriLankaToday()}. Resolve relative dates like today and tomorrow using Asia/Colombo time.`;
+}
+
+type ChatWithToolsOptions = {
+  prompt?: string;
+  enableGoogleSearch?: boolean;
+};
+
+function supportsGoogleSearch(modelName: string) {
+  return modelName.startsWith("gemini-");
+}
+
+function toolConfig(modelName: string, enableGoogleSearch?: boolean) {
+  const tools: unknown[] = [];
+  if (enableGoogleSearch && supportsGoogleSearch(modelName)) {
+    tools.push({ type: "google_search" });
+  }
+  tools.push({ functionDeclarations: mcpTools });
+  return tools;
 }
 
 /* ── Model router ── */
-
-function shouldUsePro(message: string, historyLength: number): boolean {
-  const complex =
-    /\b(recommend|suggest|compare|best|which one|help me choose|what should|gift ideas?|occasion|budget plan)\b/i;
-  const longContext = historyLength > 10;
-  return complex.test(message) || longContext;
-}
-
-function chooseModel(message: string, historyLength: number) {
-  if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
-  return shouldUsePro(message, historyLength) ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
-}
 
 /* ── Streaming chat ── */
 
 export async function* streamChat(
   message: string,
   history: Content[],
-  onToolCall: (name: string, args: Record<string, unknown>) => Promise<unknown>
+  onToolCall: (name: string, args: Record<string, unknown>) => Promise<unknown>,
+  modelName: TextModel = MODELS.chat,
+  options: ChatWithToolsOptions = {}
 ) {
-  const modelName = chooseModel(message, history.length);
-
   const response = await ai.models.generateContentStream({
     model: modelName,
     contents: [
@@ -151,9 +157,9 @@ export async function* streamChat(
       { role: "user", parts: [{ text: message }] },
     ],
     config: {
-      systemInstruction: systemPrompt(),
-      tools: [{ functionDeclarations: mcpTools }],
-      temperature: 0.7,
+      systemInstruction: systemPrompt(options.prompt),
+      tools: toolConfig(modelName, options.enableGoogleSearch) as any,
+      temperature: CHAT_TEMPERATURE,
       maxOutputTokens: 2048,
     },
   });
@@ -206,10 +212,10 @@ export async function chatWithTools(
   message: string,
   history: Content[],
   onToolCall: (name: string, args: Record<string, unknown>) => Promise<unknown>,
-  audio?: { data: string; mimeType: string }
+  audio?: { data: string; mimeType: string },
+  modelName: TextModel = MODELS.chat,
+  options: ChatWithToolsOptions = {}
 ): Promise<{ text: string; toolResults: Array<{ name: string; result: unknown }> }> {
-  const modelName = chooseModel(message, history.length);
-
   const parts = [];
   if (message) parts.push({ text: message });
   if (audio) {
@@ -237,9 +243,9 @@ export async function chatWithTools(
       model: modelName,
       contents: currentContents,
       config: {
-        systemInstruction: systemPrompt(),
-        tools: [{ functionDeclarations: mcpTools }],
-        temperature: 0.7,
+        systemInstruction: systemPrompt(options.prompt),
+        tools: toolConfig(modelName, options.enableGoogleSearch) as any,
+        temperature: CHAT_TEMPERATURE,
         maxOutputTokens: 2048,
       },
     });
@@ -277,4 +283,51 @@ export async function chatWithTools(
   }
 
   return { text: "I ran into an issue processing your request. Could you try again?", toolResults };
+}
+
+export async function quickComplexStarter(message: string): Promise<string> {
+  const response = await ai.models.generateContent({
+    model: MODELS.chat,
+    contents: [{ role: "user", parts: [{ text: message }] }],
+    config: {
+      systemInstruction:
+        "You are Kade, a warm Sri Lankan shopping friend. Write a natural quick acknowledgement in the user's language/style for a complex shopping situation. Match Sinhala, Tamil, Singlish, Tanglish, or English naturally. Be human and emotionally aware, but do not solve the request yet. Do not mention products, categories, prices, search results, tools, or internal reasoning. Do not say 'give me a second'. Keep it to 1-2 short sentences.",
+      temperature: CHAT_TEMPERATURE,
+      maxOutputTokens: 120,
+    },
+  });
+
+  return response.text?.trim() || "";
+}
+
+export async function researchGiftIdeas(message: string, history: Content[] = []): Promise<string> {
+  const context = history
+    .slice(-6)
+    .flatMap((entry) => entry.parts?.map((part) => part.text ?? "") ?? [])
+    .filter(Boolean)
+    .join("\n")
+    .slice(-2500);
+
+  const response = await ai.models.generateContent({
+    model: MODELS.chat,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Conversation context:\n${context || "(none)"}\n\nLatest user message:\n${message}`,
+          },
+        ],
+      },
+    ],
+    config: {
+      systemInstruction:
+        "You are Kade's private gift research assistant. Use Google Search grounding to identify current gift categories that fit the recipient, relationship, occasion, interests, and Sri Lankan delivery context. Do not write a customer-facing reply. If there is not enough recipient detail yet, start with NEED_PROFILE and name the single best next profiling question. Otherwise return 3-5 concise gift categories with why each fits and useful Kapruka search terms. No markdown tables.",
+      tools: [{ type: "google_search" }] as any,
+      temperature: 0.45,
+      maxOutputTokens: 420,
+    },
+  });
+
+  return response.text?.trim() || "";
 }

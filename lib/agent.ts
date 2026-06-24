@@ -2,6 +2,18 @@ import type { Product } from "./types";
 
 const SINHALA_RE = /[\u0d80-\u0dff]/;
 const TAMIL_RE = /[\u0b80-\u0bff]/;
+const SINHALA_FLOWER_RE = /මල්|රෝස/;
+const TAMIL_FLOWER_RE = /பூ|மலர்|ரோஜா/;
+const SINHALA_EDIBLE_RE = /කන්න|කෑම|කේක්|චොකලට්|චොක්ලට්|බිස්කට්/;
+const TAMIL_EDIBLE_RE = /சாப்பிட|உணவு|கேக்|சாக்லேட்|பிஸ்கட்/;
+const SINHALA_CAKE_RE = /කේක්|උපන්දින/;
+const TAMIL_CAKE_RE = /கேக்|பிறந்தநாள்/;
+const SINHALA_CHOCOLATE_RE = /චොකලට්|චොක්ලට්/;
+const TAMIL_CHOCOLATE_RE = /சாக்லேட்/;
+const SINHALA_BISCUIT_RE = /බිස්කට්/;
+const TAMIL_BISCUIT_RE = /பிஸ்கட்/;
+const SINHALA_GIFT_RE = /තෑගි|තෑග්ග/;
+const TAMIL_GIFT_RE = /பரிசு/;
 
 function hasAny(input: string, terms: string[]) {
   const lower = input.toLowerCase();
@@ -10,7 +22,8 @@ function hasAny(input: string, terms: string[]) {
 
 function hasFlowerMention(input: string) {
   return /\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/i.test(input) ||
-    /මල්|රෝස|பூ|மலர்|ரோஜா/.test(input);
+    SINHALA_FLOWER_RE.test(input) ||
+    TAMIL_FLOWER_RE.test(input);
 }
 
 export function dislikesFlowers(input: string) {
@@ -20,7 +33,8 @@ export function dislikesFlowers(input: string) {
 
 export function asksForEdibleGift(input: string) {
   return /\b(eat|eats|edible|food|snack|snacks|sweet|dessert|kanna|cake|chocolate|biscuits?|cookies?)\b/i.test(input) ||
-    /කන්න|කෑම|பசிக்க|சாப்பிட|உணவு/.test(input);
+    SINHALA_EDIBLE_RE.test(input) ||
+    TAMIL_EDIBLE_RE.test(input);
 }
 
 export function detectTone(input: string) {
@@ -37,11 +51,11 @@ export function extractSearchIntent(input: string) {
   const cityMatch = input.match(/\b(colombo\s?\d{1,2}|galle|kandy|negombo|jaffna|matara|kurunegala|anuradhapura|ratnapura|batticaloa|balangoda)\b/i);
 
   const flowerBlocked = dislikesFlowers(input);
-  const wantsCake = /\b(cakes?|birthday|icing|keik|bento|ribbon)\b/.test(lower) || /කේක්|උපන්दिन|கேக்|பிறந்தநாள்/.test(input);
+  const wantsCake = /\b(cakes?|birthday|icing|keik|bento|ribbon)\b/.test(lower) || SINHALA_CAKE_RE.test(input) || TAMIL_CAKE_RE.test(input);
   const wantsFlowers = !flowerBlocked && hasFlowerMention(input);
-  const wantsChocolate = /\b(chocolates?|choco|choko|soklet|ferrero|toblerone)\b/.test(lower) || /චොකලට්|சாக்லேட்/.test(input);
-  const wantsBiscuits = /\b(biscuits?|cookies?|crackers?|biskut|munchee|maliban|oreo)\b/.test(lower) || /බිස්කට්|பிஸ்கட்/.test(input);
-  const wantsGift = /\b(gifts?|thagi|thaagi|parisu)\b/.test(lower) || /තෑගි|තෑග්ග|பரிசு/.test(input);
+  const wantsChocolate = /\b(chocolates?|choco|choko|soklet|ferrero|toblerone)\b/.test(lower) || SINHALA_CHOCOLATE_RE.test(input) || TAMIL_CHOCOLATE_RE.test(input);
+  const wantsBiscuits = /\b(biscuits?|cookies?|crackers?|biskut|munchee|maliban|oreo)\b/.test(lower) || SINHALA_BISCUIT_RE.test(input) || TAMIL_BISCUIT_RE.test(input);
+  const wantsGift = /\b(gifts?|thagi|thaagi|parisu)\b/.test(lower) || SINHALA_GIFT_RE.test(input) || TAMIL_GIFT_RE.test(input);
 
   const category = wantsCake
     ? "Cakes"
@@ -78,29 +92,92 @@ export function extractSearchIntent(input: string) {
   };
 }
 
+function productName(product?: Product) {
+  if (!product) return null;
+  const price = product.price?.amount == null ? "" : ` (Rs. ${new Intl.NumberFormat("en-LK", { maximumFractionDigits: 0 }).format(product.price.amount)})`;
+  return `${product.name}${price}`;
+}
+
+function emotionalGiftCopy(input: string, products: Product[]) {
+  const lower = input.toLowerCase();
+  const isApology = /\b(messed up|sorry|apology|forgive|angry|mad|fight|damage control)\b/.test(lower);
+  const isGirlfriend = /\b(girlfriend|gf|wife|crush|love)\b/.test(lower);
+  const isAmma = /\b(amma|ammi|mother|mom|mum)\b/.test(lower);
+
+  if (!products.length || (!isApology && !isGirlfriend && !isAmma)) return null;
+
+  const textFor = (product: Product) =>
+    `${product.id} ${product.name} ${product.summary ?? ""} ${product.category?.name ?? ""}`.toLowerCase();
+  const flowers = products.find((product) => /\b(rose|flower|bouquet)\b/.test(textFor(product)));
+  const chocolate = products.find((product) => /\b(chocolate|ferrero|truffle|hearts?)\b/.test(textFor(product)));
+  const romanticAlternative = products.find((product) => {
+    const text = textFor(product);
+    return product !== flowers && product !== chocolate && /\b(heart|love|romantic|ferrero|truffle|chocolate)\b/.test(text);
+  });
+  const first = products[0];
+
+  if (isApology || isGirlfriend) {
+    const safeProduct = flowers || chocolate || products.find((product) => (product.price?.amount ?? 0) <= 10000) || first;
+    const grandProduct =
+      products.find((product) => product !== safeProduct && (product.price?.amount ?? 0) >= 10000) ||
+      products.find((product) => product !== safeProduct);
+    const cuteProduct =
+      chocolate ||
+      romanticAlternative ||
+      products.find((product) => product !== safeProduct && product !== grandProduct && (product.price?.amount ?? 0) <= 7000);
+    const safe = productName(safeProduct);
+    const grand = productName(grandProduct);
+    const cute = productName(cuteProduct && cuteProduct !== safeProduct && cuteProduct !== grandProduct ? cuteProduct : undefined);
+
+    return [
+      "Aiyo, okay. For this one, do not overthink it: make it feel intentional, sweet, and a little romantic.",
+      safe ? `The safest move is ${safe}. It says sorry without looking random.` : null,
+      grand ? `If this is proper damage-control territory, pick ${grand}. One strong gesture is better than three confused small ones.` : null,
+      cute ? `If you want something softer, ${cute} keeps it cute and not too dramatic.` : null,
+      "Add the option that feels closest to the situation and I can help with delivery plus a sincere gift message.",
+    ].filter(Boolean).join("\n\n");
+  }
+
+  if (isAmma) {
+    const main = productName(first);
+    const second = productName(products[1]);
+    return [
+      "For Amma, I would keep it thoughtful and useful rather than flashy.",
+      main ? `${main} looks like the safest first pick.` : null,
+      second ? `${second} is also worth considering if you want a softer add-on.` : null,
+      "Pick one and I can help check delivery and add a warm message.",
+    ].filter(Boolean).join("\n\n");
+  }
+
+  return null;
+}
+
 export function assistantCopy(input: string, products: Product[], city?: string | null) {
   const tone = detectTone(input);
   const count = products.length;
+  const emotionalCopy = emotionalGiftCopy(input, products);
+
+  if (emotionalCopy) return emotionalCopy;
 
   if (tone === "sinhala") {
     return count
-      ? `Kapruka එකෙන් ගැලපෙන options ${count}ක් තියෙනවා. කැමති item එක cart එකට දාන්න; city/date දුන්නොත් delivery quote එකත් බලන්නම්.`
-      : "මේකට හරි match එකක් හම්බුනේ නැහැ. තව ටිකක් specific කරලා කියන්න, cake, chocolates, biscuits වගේ.";
+      ? "හරි, මේ options ටික බලන්න. කැමති එකක් දැක්කොත් කියන්න, මම ඊළඟට delivery බලන්නම්."
+      : "මට තව ටිකක් context දෙන්න. ඔයා හොයන්නේ cake එකක්ද, chocolate එකක්ද, නැත්තම් වෙන gift එකක්ද?";
   }
 
   if (tone === "tamil") {
     return count
-      ? `Kapruka-வில் பொருத்தமான ${count} options கிடைத்தது. பிடித்த item-ஐ cart-க்கு add பண்ணுங்கள்; city/date கொடுத்தால் delivery quote பார்க்கலாம்.`
-      : "இதற்கு சரியான match கிடைக்கவில்லை. Cake, chocolates, biscuits மாதிரி இன்னும் specific-ஆ சொல்லுங்கள்.";
+      ? "சரி, இந்த options நல்லா பொருந்தும். பிடித்தது இருந்தா சொல்லுங்க, அடுத்தது delivery பார்க்கலாம்."
+      : "கொஞ்சம் context சொல்லுங்க. Cake வேண்டுமா, chocolate வேண்டுமா, இல்ல வேற gift ஒன்றா?";
   }
 
   if (tone === "tanglish") {
     return count
-      ? `Hari, Kapruka eke solid picks ${count} found${city ? ` for ${city}` : ""}. Add karanna, delivery quote eka balala checkout link eka denna puluwan.`
-      : "Me request ekata clear match ekak na. Cake, chocolate, biscuits wage edible gift type ekak kiyanna.";
+      ? `Hari, me options tika balanna${city ? ` for ${city}` : ""}. Kamathi ekak thiyenawanam kiyanna, next delivery balamu.`
+      : "Thawa poddak context denna. Cake ekakda, chocolate ekakda, nathnam wena gift ekakda?";
   }
 
   return count
-    ? `I found ${count} Kapruka picks${city ? ` that can work for ${city}` : ""}. Add a few to the cart, then I can check delivery and create the pay link.`
-    : "I could not find a strong match. Try a more specific phrase like birthday cake, chocolates, tea hamper, or biscuits.";
+    ? `Nice, these Kapruka picks look closest to what you asked${city ? ` for ${city}` : ""}. Pick the one that feels right and I can handle delivery next.`
+    : "Give me a little more context. Are we thinking cake, chocolate, hamper, or another kind of gift?";
 }

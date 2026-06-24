@@ -48,9 +48,45 @@ const prompts = [
   "🎁 Machan surprise gift karanna, budget 5000",
 ];
 
+const LIVE_VOICES = [
+  "Zephyr",
+  "Kore",
+  "Orus",
+  "Autonoe",
+  "Umbriel",
+  "Erinome",
+  "Laomedeia",
+  "Schedar",
+  "Achird",
+  "Sadachbia",
+  "Puck",
+  "Fenrir",
+  "Aoede",
+  "Enceladus",
+  "Algieba",
+  "Algenib",
+  "Achernar",
+  "Gacrux",
+  "Zubenelgenubi",
+  "Sadaltager",
+  "Charon",
+  "Leda",
+  "Callirrhoe",
+  "Iapetus",
+  "Despina",
+  "Rasalgethi",
+  "Alnilam",
+  "Pulcherrima",
+  "Vindemiatrix",
+  "Sulafat",
+] as const;
+
 const today = new Date().toISOString().slice(0, 10);
 const CART_STORAGE_KEY = "kade-ai-cart";
 const RECENT_CARTS_STORAGE_KEY = "kade-ai-recent-carts";
+const CHAT_SESSIONS_STORAGE_KEY = "kade-ai-chat-sessions";
+const ACTIVE_CHAT_COOKIE = "kade_active_chat";
+const CHAT_SESSION_LIMIT = 12;
 const POPULAR_DELIVERY_CITIES = [
   "Colombo 01",
   "Colombo 02",
@@ -93,6 +129,14 @@ type RecentCart = {
   label: string;
   createdAt: string;
   items: CartItem[];
+};
+
+type ChatSession = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
 };
 
 type DeliveryCity = {
@@ -150,20 +194,67 @@ function recentCartLabel(items: CartItem[]) {
   return items.length > 1 ? `${first} + ${items.length - 1} more` : first;
 }
 
+function welcomeMessage(): ChatMessage {
+  return {
+    id: "welcome",
+    role: "assistant",
+    text: "Hey, I'm Kade. Think of me as your Kapruka shopping friend.\n\nWe can browse, rescue a last-minute gift, fix an apology situation, or just look around. What are we finding today?",
+    label: "AI_RECOMMENDATION",
+    quickReplies: prompts,
+  };
+}
+
+function createChatId() {
+  return `chat_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function chatTitle(messages: ChatMessage[]) {
+  const firstUserMessage = messages.find((message) => message.role === "user")?.text.trim();
+  if (!firstUserMessage) return "New Kade chat";
+  return firstUserMessage.length > 42 ? `${firstUserMessage.slice(0, 42)}...` : firstUserMessage;
+}
+
+function sanitizeMessages(messages: ChatMessage[]) {
+  return messages.map((message) => ({ ...message, isStreaming: false }));
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function writeCookie(name: string, value: string, days = 30) {
+  if (typeof document === "undefined") return;
+  const maxAge = days * 24 * 60 * 60;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; samesite=lax`;
+}
+
+function updateChatUrl(id: string, temporary: boolean, mode: "push" | "replace" = "push") {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (temporary) {
+    url.searchParams.delete("chat");
+    url.searchParams.set("temp", id);
+  } else {
+    url.searchParams.delete("temp");
+    url.searchParams.set("chat", id);
+  }
+  window.history[mode === "push" ? "pushState" : "replaceState"]({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 /* ── Main Page ── */
 
 export default function Home() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      text: "Hey! I'm **Kade**, your personal shopping concierge for Kapruka.com 🛍️\n\nTell me who you're shopping for — the occasion, your budget, and the delivery city. I'll find the perfect products, check delivery, and create your secure checkout link.\n\nI speak English, සිංහල, and Tanglish!",
-      label: "AI_RECOMMENDATION",
-      quickReplies: prompts,
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [welcomeMessage()]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState("");
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [temporaryChat, setTemporaryChat] = useState(false);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
+  const [chatHydrated, setChatHydrated] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [recentCarts, setRecentCarts] = useState<RecentCart[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -195,6 +286,60 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const chatBusy = loading || Boolean(typingMessageId);
+  const chatSessionsRef = useRef<ChatSession[]>([]);
+
+  const resetConversationSurface = useCallback(() => {
+    setSelectedProduct(null);
+    setShowCheckout(false);
+    setDeliveryQuote(null);
+    setOrder(null);
+    setTrackingResult(null);
+    setTypingMessageId(null);
+    setLoading(false);
+  }, []);
+
+  const openChatSession = useCallback((session: ChatSession, mode: "push" | "replace" = "push") => {
+    setActiveChatId(session.id);
+    setTemporaryChat(false);
+    setMessages(session.messages?.length ? sanitizeMessages(session.messages) : [welcomeMessage()]);
+    setChatHistoryOpen(false);
+    resetConversationSurface();
+    writeCookie(ACTIVE_CHAT_COOKIE, session.id);
+    updateChatUrl(session.id, false, mode);
+  }, [resetConversationSurface]);
+
+  const startChat = useCallback((temporary = false) => {
+    const id = createChatId();
+    const createdAt = new Date().toISOString();
+    const freshMessages = [welcomeMessage()];
+
+    setActiveChatId(id);
+    setTemporaryChat(temporary);
+    setMessages(freshMessages);
+    setChatHistoryOpen(false);
+    resetConversationSurface();
+    updateChatUrl(id, temporary);
+
+    if (temporary) return;
+
+    const session: ChatSession = {
+      id,
+      title: "New Kade chat",
+      createdAt,
+      updatedAt: createdAt,
+      messages: freshMessages,
+    };
+    const nextSessions = [session, ...chatSessionsRef.current].slice(0, CHAT_SESSION_LIMIT);
+    chatSessionsRef.current = nextSessions;
+    setChatSessions(nextSessions);
+    try {
+      window.localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(nextSessions));
+    } catch {
+      // Ignore local storage quota errors.
+    }
+    writeCookie(ACTIVE_CHAT_COOKIE, id);
+  }, [resetConversationSurface]);
 
   // Conversation history for Gemini
   const conversationHistory = useMemo(() => {
@@ -232,6 +377,125 @@ export default function Home() {
       setCartOpen(false);
     }
   }, [cart.length]);
+
+  useEffect(() => {
+    chatSessionsRef.current = chatSessions;
+  }, [chatSessions]);
+
+  useEffect(() => {
+    try {
+      const savedSessions = window.localStorage.getItem(CHAT_SESSIONS_STORAGE_KEY);
+      const sessions: ChatSession[] = savedSessions ? JSON.parse(savedSessions) : [];
+      const params = new URLSearchParams(window.location.search);
+      const tempId = params.get("temp");
+      const requestedChatId = params.get("chat") || readCookie(ACTIVE_CHAT_COOKIE);
+
+      chatSessionsRef.current = sessions;
+      setChatSessions(sessions);
+
+      if (tempId) {
+        setActiveChatId(tempId);
+        setTemporaryChat(true);
+        setMessages([welcomeMessage()]);
+        updateChatUrl(tempId, true, "replace");
+        setChatHydrated(true);
+        return;
+      }
+
+      const matchedSession = requestedChatId
+        ? sessions.find((session) => session.id === requestedChatId)
+        : sessions[0];
+
+      if (matchedSession) {
+        openChatSession(matchedSession, "replace");
+        setChatHydrated(true);
+        return;
+      }
+
+      const id = requestedChatId || createChatId();
+      const createdAt = new Date().toISOString();
+      const freshSession: ChatSession = {
+        id,
+        title: "New Kade chat",
+        createdAt,
+        updatedAt: createdAt,
+        messages: [welcomeMessage()],
+      };
+      const nextSessions = [freshSession, ...sessions].slice(0, CHAT_SESSION_LIMIT);
+      chatSessionsRef.current = nextSessions;
+      setChatSessions(nextSessions);
+      setActiveChatId(id);
+      setTemporaryChat(false);
+      setMessages(freshSession.messages);
+      updateChatUrl(id, false, "replace");
+      writeCookie(ACTIVE_CHAT_COOKIE, id);
+      window.localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(nextSessions));
+      setChatHydrated(true);
+    } catch {
+      const id = createChatId();
+      setActiveChatId(id);
+      setTemporaryChat(false);
+      setMessages([welcomeMessage()]);
+      updateChatUrl(id, false, "replace");
+      writeCookie(ACTIVE_CHAT_COOKIE, id);
+      setChatHydrated(true);
+    }
+  }, [openChatSession]);
+
+  useEffect(() => {
+    if (!chatHydrated) return;
+
+    function handlePopState() {
+      const params = new URLSearchParams(window.location.search);
+      const tempId = params.get("temp");
+      const chatId = params.get("chat");
+
+      if (tempId) {
+        setActiveChatId(tempId);
+        setTemporaryChat(true);
+        setMessages([welcomeMessage()]);
+        resetConversationSurface();
+        return;
+      }
+
+      const session = chatSessionsRef.current.find((entry) => entry.id === chatId);
+      if (session) {
+        openChatSession(session, "replace");
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [chatHydrated, openChatSession, resetConversationSurface]);
+
+  useEffect(() => {
+    if (!chatHydrated || temporaryChat || !activeChatId || chatBusy) return;
+
+    try {
+      const now = new Date().toISOString();
+      const existing = chatSessionsRef.current.find((session) => session.id === activeChatId);
+      const snapshot: ChatSession = {
+        id: activeChatId,
+        title: chatTitle(messages),
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        messages: sanitizeMessages(messages),
+      };
+      const nextSessions = [
+        snapshot,
+        ...chatSessionsRef.current.filter((session) => session.id !== activeChatId),
+      ]
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .slice(0, CHAT_SESSION_LIMIT);
+
+      chatSessionsRef.current = nextSessions;
+      setChatSessions(nextSessions);
+      window.localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(nextSessions));
+      writeCookie(ACTIVE_CHAT_COOKIE, activeChatId);
+    } catch {
+      // Ignore local storage quota errors.
+    }
+  }, [messages, activeChatId, temporaryChat, chatHydrated, chatBusy]);
 
   useEffect(() => {
     try {
@@ -284,10 +548,49 @@ export default function Home() {
 
   /* ── Chat ── */
 
+  const revealAssistantMessage = useCallback((
+    messageId: string,
+    fullText: string,
+    options: { fromLength?: number; keepStreaming?: boolean } = {}
+  ) => {
+    return new Promise<void>((resolve) => {
+      const text = fullText || "I couldn't process that. Try again?";
+      const fromLength = Math.min(options.fromLength ?? 0, text.length);
+      const step = Math.max(1, Math.ceil(text.length / 320));
+      let index = fromLength;
+
+      setTypingMessageId(messageId);
+      if (fromLength === 0) {
+        setMessages((prev) =>
+          prev.map((message) => (message.id === messageId ? { ...message, text: "" } : message))
+        );
+      }
+      const interval = window.setInterval(() => {
+        index = Math.min(text.length, index + step);
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId ? { ...message, text: text.slice(0, index) } : message
+          )
+        );
+
+        if (index >= text.length) {
+          window.clearInterval(interval);
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === messageId ? { ...message, text, isStreaming: options.keepStreaming ?? false } : message
+            )
+          );
+          if (!options.keepStreaming) setTypingMessageId(null);
+          resolve();
+        }
+      }, 24);
+    });
+  }, []);
+
   const sendMessage = useCallback(
     async (text = input, audioData?: { data: string; mimeType: string }) => {
       const trimmed = text.trim();
-      if ((!trimmed && !audioData) || loading) return;
+      if ((!trimmed && !audioData) || chatBusy) return;
 
       const userMessage: ChatMessage = { 
         id: crypto.randomUUID(), 
@@ -306,29 +609,108 @@ export default function Home() {
             message: trimmed,
             history: conversationHistory,
             audio: audioData,
+            stream: true,
           }),
         });
 
-        const data = await res.json();
+        const assistantId = crypto.randomUUID();
+        let assistantAdded = false;
+        let starterText = "";
+        let finalData: any = null;
 
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: data.reply || "I couldn't process that. Try again?",
-          products: data.products?.length ? data.products : undefined,
-          label: data.label || "AI_RECOMMENDATION",
-          quickReplies: data.quickReplies?.length
-            ? data.quickReplies
-            : data.products?.length
-              ? ["Show more options", "Check delivery cost", "Add all to cart"]
-              : ["Browse cakes", "Chocolate gifts", "Biscuit hampers", "Track my order"],
+        const addAssistant = () => {
+          if (assistantAdded) return;
+          assistantAdded = true;
+          setLoading(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: assistantId,
+              role: "assistant",
+              text: "",
+              label: "AI_RECOMMENDATION",
+              isStreaming: true,
+            },
+          ]);
         };
 
-        setMessages((prev) => [...prev, assistantMessage]);
+        const applyFinalMeta = (data: any) => {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    products: data.products?.length ? data.products : undefined,
+                    label: data.label || "AI_RECOMMENDATION",
+                    quickReplies: data.quickReplies?.length
+                      ? data.quickReplies
+                      : data.products?.length
+                        ? ["Show more options", "Check delivery cost", "Add all to cart"]
+                        : ["Browse cakes", "Chocolate gifts", "Biscuit hampers", "Track my order"],
+                    isStreaming: true,
+                  }
+                : message
+            )
+          );
+        };
 
-        // Auto-select first product for detail panel
-        if (data.products?.length && !selectedProduct) {
-          setSelectedProduct({ product: data.products[0] });
+        const handleStreamEvent = async (rawEvent: string) => {
+          const lines = rawEvent.split("\n");
+          const event = lines.find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const dataText = lines
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim())
+            .join("\n");
+          const data = dataText ? JSON.parse(dataText) : {};
+
+          if (event === "starter") {
+            addAssistant();
+            starterText = data.reply || "";
+            await revealAssistantMessage(assistantId, starterText, { keepStreaming: true });
+          }
+
+          if (event === "final") {
+            addAssistant();
+            finalData = data;
+            applyFinalMeta(data);
+            const finalReply = data.reply || "I couldn't process that. Try again?";
+            await revealAssistantMessage(assistantId, finalReply);
+          }
+
+          if (event === "error") {
+            addAssistant();
+            await revealAssistantMessage(assistantId, data.reply || "Something went wrong connecting to the server.");
+          }
+        };
+
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("text/event-stream") && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split("\n\n");
+            buffer = events.pop() ?? "";
+            for (const event of events) {
+              if (event.trim()) await handleStreamEvent(event);
+            }
+          }
+
+          if (buffer.trim()) await handleStreamEvent(buffer);
+        } else {
+          const data = await res.json();
+          addAssistant();
+          finalData = data;
+          applyFinalMeta(data);
+          await revealAssistantMessage(assistantId, data.reply || "I couldn't process that. Try again?");
+        }
+
+        if (finalData?.products?.length && !selectedProduct) {
+          setSelectedProduct({ product: finalData.products[0] });
           setDetailOpen(true);
         }
       } catch {
@@ -345,7 +727,7 @@ export default function Home() {
         inputRef.current?.focus();
       }
     },
-    [input, loading, conversationHistory, selectedProduct]
+    [input, chatBusy, conversationHistory, selectedProduct, revealAssistantMessage]
   );
 
   function addToCart(product: Product) {
@@ -588,7 +970,7 @@ export default function Home() {
             </div>
 
             <nav className={styles.bottomNav}>
-              <button className={styles.bottomNavItem}>
+              <button className={styles.bottomNavItem} onClick={() => setChatHistoryOpen(true)}>
                 <History size={16} />
                 History
               </button>
@@ -633,12 +1015,33 @@ export default function Home() {
           </div>
 
           <nav className={styles.navTabs}>
-            <button className={styles.navTab}>Workspace</button>
-            <button className={styles.navTab}>History</button>
-            <button className={clsx(styles.navTab, styles.navTabActive)}>Explore</button>
+            <button
+              className={clsx(styles.navTab, chatHistoryOpen && styles.navTabActive)}
+              onClick={() => setChatHistoryOpen(true)}
+            >
+              History
+            </button>
+            <button
+              className={clsx(styles.navTab, !chatHistoryOpen && styles.navTabActive)}
+              onClick={() => setChatHistoryOpen(false)}
+            >
+              Explore
+            </button>
           </nav>
 
           <div className={styles.topbarActions}>
+            <button className={styles.actionPill} type="button" onClick={() => startChat(false)}>
+              <Plus size={14} />
+              <span>New chat</span>
+            </button>
+            <button
+              className={clsx(styles.actionPill, temporaryChat && styles.actionPillActive)}
+              type="button"
+              onClick={() => startChat(true)}
+            >
+              <Clock size={14} />
+              <span>Temp</span>
+            </button>
             <div className={styles.livePill}>
               <span />
               MCP live
@@ -664,6 +1067,51 @@ export default function Home() {
           </div>
         </header>
 
+        {chatHistoryOpen ? (
+          <div className={styles.historyScreen}>
+            <section className={clsx(styles.chatHistoryPanel, styles.chatHistoryPanelFull)}>
+              <div className={styles.chatHistoryHeader}>
+                <div>
+                  <span>Chat history</span>
+                  <strong>{temporaryChat ? "Temporary chat active" : activeChatId ? "Saved chats on this browser" : "Loading chats"}</strong>
+                </div>
+                <button type="button" className={styles.actionPill} onClick={() => startChat(false)}>
+                  <Plus size={14} />
+                  <span>New chat</span>
+                </button>
+              </div>
+
+              {chatSessions.length > 0 ? (
+                <div className={styles.chatHistoryList}>
+                  {chatSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className={clsx(styles.chatHistoryItem, session.id === activeChatId && !temporaryChat && styles.chatHistoryItemActive)}
+                      onClick={() => openChatSession(session)}
+                    >
+                      <MessageCircle size={15} />
+                      <span>
+                        <strong>{session.title}</strong>
+                        <small>
+                          {new Intl.DateTimeFormat("en-LK", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(session.updatedAt))}
+                        </small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.chatHistoryEmpty}>No saved chats yet. Start a new chat and it will appear here.</p>
+              )}
+            </section>
+          </div>
+        ) : (
+          <>
         <div className={styles.messages}>
           {messages.length <= 1 && (
           <section className={styles.commandDeck}>
@@ -673,7 +1121,7 @@ export default function Home() {
                 Sri Lankan gift intelligence
               </div>
               <h2>Shop by feeling, not filters.</h2>
-              <p>Say the person, occasion, budget, and city. Kade will turn it into live Kapruka products, delivery checks, and a cart.</p>
+              <p>Tell me what is going on, like a birthday, apology, office snack run, or just browsing. We will narrow it down naturally.</p>
             </div>
             <div className={styles.giftLanes}>
               <button type="button" onClick={() => sendMessage("Birthday cake under LKR 8000 to Colombo")}>
@@ -721,9 +1169,10 @@ export default function Home() {
 
                 <div className={styles.messageText}>
                   <MessageContent text={message.text} />
+                  {message.isStreaming && <span className={styles.streamingCursor} />}
                 </div>
 
-                {message.products?.length ? (
+                {!message.isStreaming && message.products?.length ? (
                   <div className={styles.productGrid}>
                     <div className={styles.productGridIntro}>
                       <Sparkles size={13} />
@@ -744,7 +1193,7 @@ export default function Home() {
                   </div>
                 ) : null}
 
-                {message.quickReplies && (
+                {!message.isStreaming && message.quickReplies && (
                   <div className={styles.quickReplies}>
                     {message.quickReplies.map((reply) => (
                       <button
@@ -795,7 +1244,7 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Kade AI to find more or refine search... / සිංහලෙන් ලියන්න"
-              disabled={loading}
+              disabled={chatBusy}
             />
             <button 
               type="button" 
@@ -808,12 +1257,14 @@ export default function Home() {
             <button
               type="submit"
               className={styles.composerSend}
-              disabled={!input.trim() || loading}
+              disabled={!input.trim() || chatBusy}
               aria-label="Send"
             >
-              {loading ? <Loader2 size={18} className={styles.spinIcon} /> : <ChevronUp size={20} />}
+              {chatBusy ? <Loader2 size={18} className={styles.spinIcon} /> : <ChevronUp size={20} />}
             </button>
           </form>
+        )}
+          </>
         )}
       </section>
 
@@ -1407,6 +1858,7 @@ function LiveCallOverlay({
 }) {
   const [status, setStatus] = useState<"connecting" | "listening" | "speaking">("connecting");
   const [muted, setMuted] = useState(false);
+  const [voiceName, setVoiceName] = useState<(typeof LIVE_VOICES)[number]>("Aoede");
   const [transcript, setTranscript] = useState("Connecting to Kade AI...");
   const sessionRef = useRef<Awaited<ReturnType<GoogleGenAI["live"]["connect"]>> | null>(null);
   const mutedRef = useRef(false);
@@ -1514,6 +1966,7 @@ function LiveCallOverlay({
         const tokenResponse = await fetch("/api/live-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceName }),
         });
         const tokenData = await tokenResponse.json();
 
@@ -1657,7 +2110,7 @@ function LiveCallOverlay({
       }
       if (audioContextRef.current) audioContextRef.current.close();
     };
-  }, [handleVoiceTranscript, onClose, stopQueuedAudio]);
+  }, [handleVoiceTranscript, onClose, stopQueuedAudio, voiceName]);
 
   // Decode base64 24kHz Int16 to Float32 and play
   const playAudioChunk = (base64: string) => {
@@ -1737,6 +2190,23 @@ function LiveCallOverlay({
             />
             {status === "connecting" ? "Connecting..." : status === "speaking" ? "Speaking..." : "Listening..."}
           </div>
+          <select
+            className={styles.liveVoiceSelect}
+            value={voiceName}
+            onChange={(event) => {
+              stopQueuedAudio();
+              setStatus("connecting");
+              setTranscript(`Switching voice to ${event.target.value}...`);
+              setVoiceName(event.target.value as (typeof LIVE_VOICES)[number]);
+            }}
+            aria-label="Select Gemini Live voice"
+          >
+            {LIVE_VOICES.map((voice) => (
+              <option key={voice} value={voice}>
+                {voice}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className={styles.liveCallTranscript}>

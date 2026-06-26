@@ -79,6 +79,11 @@ const liveTools: FunctionDeclaration[] = [
           type: Type.NUMBER,
           description: "Number of products to return. Use 6 to 8 for voice.",
         },
+        mode: {
+          type: Type.STRING,
+          enum: ["fresh", "more"],
+          description: "Use 'more' when the user asks for more, other, next, or different options from the current visible products.",
+        },
       },
       required: ["q"],
     },
@@ -274,6 +279,7 @@ Every response you give appears as text in the chat UI at the same time. Keep re
 PRODUCT REFERENCES:
 When products are visible, refer to them by number and name. If the user says "number two", "second one", "dekweni eka", "cheap one", or a partial product name, treat that as referring to the visible products below.
 If the user asks for "more", "another type", "different ones", "other options", "show another", or anything similar, that is NOT a product reference. Call kapruka_search_products again with a fresh query based on the current shopping category.
+If the user says "look for more", "show more", "find more", "more options", or similar, you MUST call kapruka_search_products with mode="more" and q set to the previous product category/query. Never say you found more from memory.
 
 CURRENTLY SHOWN PRODUCTS:
 ${products}
@@ -287,13 +293,19 @@ ${history}
 
 SHOPPING FLOW IN VOICE:
 - Never disconnect or pause while searching, checking delivery, or cart operations happen in the UI.
-- If the user asks to show/search/find/browse products, call kapruka_search_products. Do not just say you found items.
+- Never go silent while a tool is running. If you are waiting for Kapruka search, delivery, order, or tracking results, say one short natural line in the locked language such as "Let me search Kapruka for that", "Delivery availability check කරනවා", or "Order setup பண்ணுறேன்". Keep it natural, not scripted.
+- When tool results arrive, transition naturally in the locked language. For product results, briefly say that options are visible on screen. If there are no results, say the exact item was not found and ask one short alternative question. Do not retry the same tool call.
+- If the user asks to show/search/find/browse a specific product type, call kapruka_search_products. Do not just say you found items.
+- Broad cake requests need one question before searching. If the user only says "show cakes", "show me some cakes", or similar without flavor/occasion/budget, ask one natural question first: birthday cake, chocolate cake, or simple tea-time cake? Wait for the answer before calling kapruka_search_products.
+- Specific direct product searches are commands, not profiling conversations. If the user says "show me biscuits", "find flowers", "show chocolate cake", "birthday cake under 8000", or similar, do not ask what flavor/type/preference they like after the search starts or after results appear. Show results, then ask them to pick a visible option by number/name/tap.
+- While a direct product search is running, your waiting line must be only a short acknowledgement. Do not add a clarifying question unless kapruka_search_products returns count=0.
 - If the user asks for delivery fee, delivery cost, delivery availability, or "do you deliver to [city]", call kapruka_check_delivery. Do not ask them to add something to cart. Product ID is optional.
 - If the user asks delivery fee and later says an item type like "cakes", do NOT search cakes repeatedly. Use kapruka_check_delivery with the city/date already known, and itemType if useful.
 - If products are already visible and the user asks for another/different/more options, call kapruka_search_products again. Never say you can only see the previous products.
+- For "more options" follow-ups, call kapruka_search_products with mode="more". Only say more products are on screen if the tool response says rendered_in_ui=true and count is greater than 0.
 - For elliptical follow-ups like "another type of cakes", infer the category from the follow-up and search a useful fresh query such as "cake", "chocolate cake", "fruit cake", or the user's spoken modifier.
-- After kapruka_search_products returns products, the React UI has rendered those product cards. Then briefly mention the best 2-3 by number, name, and price.
-- If kapruka_search_products returns count=0 or rendered_in_ui=false, do not say products are visible. Retry once with a broader query like "cake", "chocolate", "roses", "gift hamper", or ask one short clarifying question.
+- After kapruka_search_products returns products, the React UI has rendered those product cards. Say briefly that options are on screen and ask the user to pick one by number/name/tap. Do not ask for more preferences.
+- If kapruka_search_products returns count=0 or rendered_in_ui=false, do not say products are visible and do not call kapruka_search_products again for the same request. Tell the user that exact match is not available, then ask one short alternative question such as whether to try a nearby category.
 - You cannot render product cards yourself. The React UI renders cards only after kapruka_search_products returns or after a Kapruka search context update.
 - Ask one thing at a time for delivery details.
 - If the user selects a cake, ask if it should be added to cart, then suggest flowers only if it fits.
@@ -398,6 +410,11 @@ Then wait for the user's response.
 The UI will keep sending context updates during the same voice session. Use those updates immediately without re-asking.`;
 }
 
+const liveToolConfig = {
+  behavior: "NON_BLOCKING",
+  functionDeclarations: liveTools,
+} as const;
+
 function createLiveConfig(voiceName: string, context?: LiveTokenContext) {
   return {
     responseModalities: [Modality.AUDIO],
@@ -413,7 +430,7 @@ function createLiveConfig(voiceName: string, context?: LiveTokenContext) {
     },
     inputAudioTranscription: {},
     outputAudioTranscription: {},
-    tools: [{ functionDeclarations: liveTools }],
+    tools: [liveToolConfig],
   };
 }
 

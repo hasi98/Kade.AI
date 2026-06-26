@@ -341,30 +341,41 @@ img {
 
 [data-theme="dark"],
 .dark {
-  --kade-primary: #6B3FC0;
-  --kade-primary-hover: #7B4FD0;
-  --kade-primary-light: #2D1259;
-  --kade-accent: #F5C518;
-  --kade-accent-hover: #FFD740;
-  --kade-accent-light: #2A2000;
-  --kade-bg: #1C1628;
-  --kade-surface: #261E38;
-  --kade-surface-secondary: #2D2440;
-  --kade-text: #F0EBF8;
-  --kade-text-secondary: #C0A8F0;
-  --kade-text-muted: #9B7FCC;
-  --kade-border: #3D2D5A;
-  --kade-border-strong: #5A4080;
-  --kade-success: #1D9E75;
-  --kade-success-light: #0D3D2E;
-  --kade-danger: #F87171;
-  --kade-danger-light: #3A151A;
-  --kade-sidebar-bg: #160D2A;
+  /* Page backgrounds - warm deep purple, not blue */
+  --kade-bg: #120D1E;
+  --kade-surface: #1E1530;
+  --kade-surface-secondary: #261D3A;
+
+  /* Sidebar - darkest anchor */
+  --kade-sidebar-bg: #0D0918;
   --kade-sidebar-text: #E8DEFF;
   --kade-sidebar-muted: #7B5AAA;
-  --kade-sidebar-hover: #1E1038;
-  --kade-sidebar-active: #2D1259;
-  --bg-glass: rgba(38, 30, 56, 0.9);
+  --kade-sidebar-hover: #1A1128;
+  --kade-sidebar-active: #2D1F4A;
+
+  /* Brand colors stay same */
+  --kade-primary: #7B4FD0;
+  --kade-primary-hover: #8B5FE0;
+  --kade-primary-light: #2D1F4A;
+  --kade-accent: #F5C518;
+  --kade-accent-hover: #FFD740;
+  --kade-accent-light: #2A1F00;
+
+  /* Text - warm white, not cool grey */
+  --kade-text: #F0EBF8;
+  --kade-text-secondary: #B89FD8;
+  --kade-text-muted: #7B5AAA;
+
+  /* Borders - warm purple tint */
+  --kade-border: #2D1F4A;
+  --kade-border-strong: #4A3570;
+
+  /* Semantic */
+  --kade-success: #1D9E75;
+  --kade-success-light: #0A2E22;
+  --kade-danger: #F87171;
+  --kade-danger-light: #3A151A;
+  --bg-glass: rgba(30, 21, 48, 0.9);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.48);

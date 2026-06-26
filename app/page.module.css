@@ -3780,3 +3780,119 @@ select.checkoutInput {
     grid-template-columns: 1fr;
   }
 }
+
+:global([data-theme="dark"]) .messageBubble,
+:global(.dark) .messageBubble {
+  background: #2A1F45;
+  border-color: #2D1F4A;
+  border-left: 2px solid #7B4FD0;
+}
+
+:global([data-theme="dark"]) .messageUser .messageBubble,
+:global(.dark) .messageUser .messageBubble {
+  background: #F5C518;
+  color: #1A1A1A;
+  border: 0;
+}
+
+:global([data-theme="dark"]) .productCard,
+:global(.dark) .productCard {
+  background: #261D3A;
+  border: 0.5px solid #4A3570;
+}
+
+:global([data-theme="dark"]) .productCardSelected,
+:global(.dark) .productCardSelected {
+  border-color: #7B4FD0;
+  box-shadow: 0 0 0 2px rgba(123, 79, 208, 0.3), var(--shadow-card-hover);
+}
+
+:global([data-theme="dark"]) .detailPane,
+:global(.dark) .detailPane {
+  background: #1E1530;
+  border-left: 0.5px solid #2D1F4A;
+}
+
+:global([data-theme="dark"]) .detailPanelHeader,
+:global(.dark) .detailPanelHeader {
+  background: #1E1530;
+  border-bottom-color: #2D1F4A;
+}
+
+:global([data-theme="dark"]) .detailPane .cartItem,
+:global([data-theme="dark"]) .detailPane .giftOption,
+:global([data-theme="dark"]) .detailPane .detailDelivery,
+:global([data-theme="dark"]) .detailPane .deliveryPlaceholder,
+:global(.dark) .detailPane .cartItem,
+:global(.dark) .detailPane .giftOption,
+:global(.dark) .detailPane .detailDelivery,
+:global(.dark) .detailPane .deliveryPlaceholder {
+  background: #261D3A;
+}
+
+:global([data-theme="dark"]) .composer,
+:global(.dark) .composer {
+  background: #1E1530;
+  border: 0.5px solid #2D1F4A;
+}
+
+:global([data-theme="dark"]) .composer:focus-within,
+:global(.dark) .composer:focus-within {
+  border-color: #7B4FD0;
+}
+
+:global([data-theme="dark"]) .giftLanes button,
+:global(.dark) .giftLanes button {
+  background: #261D3A;
+  border: 0.5px solid #4A3570;
+  color: #E8DEFF;
+}
+
+:global([data-theme="dark"]) .giftLanes button svg,
+:global(.dark) .giftLanes button svg {
+  color: #F5C518;
+}
+
+:global([data-theme="dark"]) .messageLabel,
+:global(.dark) .messageLabel {
+  background: #2D1F4A;
+  border-color: #2D1F4A;
+  color: #B89FD8;
+}
+
+:global([data-theme="dark"]) .messageLabel svg,
+:global(.dark) .messageLabel svg {
+  color: #7B4FD0;
+}
+
+:global([data-theme="dark"]) .messageLabelSearch,
+:global(.dark) .messageLabelSearch {
+  background: #1A2A1A;
+  border-color: #1A2A1A;
+  color: #5DC9A0;
+}
+
+:global([data-theme="dark"]) .messageLabelSearch svg,
+:global(.dark) .messageLabelSearch svg {
+  color: #5DC9A0;
+}
+
+:global([data-theme="dark"]) .livePill,
+:global(.dark) .livePill {
+  color: #5DC9A0;
+}
+
+:global([data-theme="dark"]) .livePill span,
+:global(.dark) .livePill span {
+  background: #1D9E75;
+}
+
+:global([data-theme="dark"]) .commandHero h2,
+:global(.dark) .commandHero h2 {
+  color: #F0EBF8;
+}
+
+:global([data-theme="dark"]) .commandHero p,
+:global(.dark) .commandHero p {
+  color: #B89FD8;
+}

@@ -113,6 +113,9 @@ const LIVE_VOICES = [
   "Sulafat",
 ] as const;
 
+let activeLiveCallGeneration = 0;
+let stopActiveLiveCall: (() => void) | null = null;
+
 type VoiceSearchArgs = {
   q?: string;
   query?: string;
@@ -120,6 +123,7 @@ type VoiceSearchArgs = {
   max_price?: number | string | null;
   limit?: number | string | null;
   sort?: string | null;
+  mode?: "more" | "fresh" | string | null;
 };
 
 type VoiceCartAddArgs = {
@@ -259,6 +263,124 @@ function money(price?: { amount: number | null; currency: string }) {
 
 function firstImage(product: Product) {
   return product.image_url || product.images?.[0] || "";
+}
+
+function voiceSearchKey(query: string, args: VoiceSearchArgs = {}) {
+  const category = String(args.category ?? "").toLowerCase().trim();
+  const maxPrice = args.max_price == null ? "" : String(args.max_price).trim();
+  const stopWords = new Set([
+    "can",
+    "okay",
+    "ok",
+    "then",
+    "you",
+    "please",
+    "search",
+    "find",
+    "show",
+    "browse",
+    "look",
+    "for",
+    "some",
+    "good",
+    "nice",
+    "best",
+    "options",
+    "again",
+    "kapruka",
+    "stuff",
+    "things",
+    "like",
+    "is",
+    "there",
+    "any",
+    "many",
+    "included",
+    "include",
+    "with",
+    "me",
+    "the",
+    "a",
+    "an",
+  ]);
+  const tokens = query
+    .toLowerCase()
+    .replace(/gift\s*(packs?|boxes|hampers?|sets?|bundles?)/g, "gift hamper")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => !stopWords.has(word))
+    .map((word) => word.endsWith("s") && word.length > 4 ? word.slice(0, -1) : word);
+
+  return [category, maxPrice, Array.from(new Set(tokens)).sort().join(" ")]
+    .filter(Boolean)
+    .join("|");
+}
+
+function isMoreOptionsRequest(text: string) {
+  const lower = text.toLowerCase();
+  return /\b(more|another|other|different|else|next|again|new options?|more options?|more choices?|look for more|show more|find more|search more|keep looking|load more|try more)\b/.test(lower) ||
+    /\b(thawa|wena|ayeth|innum|vera|vere)\b/i.test(lower);
+}
+
+function stripMoreOptionsWords(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/\b(can you|could you|please|pls|i need|need|want|show|find|search|look|browse|check|for|me|some|more|another|other|different|else|next|again|new|options?|choices?|ones?|items?|things?|stuff|type|types|kind|kinds|tickets?)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferSearchQueryFromProducts(products: Product[]) {
+  const text = products
+    .map((product) => `${product.name} ${product.category?.name ?? ""} ${product.category?.slug ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+  if (/\b(chocolate|choco|cocoa|fudge)\b/.test(text) && /\b(cake|cakes|bento)\b/.test(text)) return "chocolate cake";
+  if (/\b(cake|cakes|bento|birthday)\b/.test(text)) return "cake";
+  if (/\b(biscuit|biscuits|cookie|cookies|cracker|crackers)\b/.test(text)) return "biscuits";
+  if (/\b(flower|flowers|rose|roses|bouquet)\b/.test(text)) return "roses";
+  if (/\b(chocolate|choco|ferrero|truffle)\b/.test(text)) return "chocolate";
+  if (/\b(hamper|gift box|gift set)\b/.test(text)) return "gift hamper";
+  return products[0]?.category?.name || products[0]?.name || "";
+}
+
+function isBroadCakeSearch(query: string, args: VoiceSearchArgs = {}) {
+  const text = `${query} ${args.q ?? ""} ${args.query ?? ""} ${args.category ?? ""}`.toLowerCase();
+  if (!/\b(cake|cakes)\b/.test(text)) return false;
+  if (/\b(chocolate|vanilla|fruit|butter|ribbon|bento|birthday|anniversary|wedding|love|kids?|small|large|big|under|below|budget|rs|lkr|\d+)/.test(text)) {
+    return false;
+  }
+  const meaningfulWords = text
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => ![
+      "hey",
+      "there",
+      "can",
+      "you",
+      "please",
+      "show",
+      "find",
+      "search",
+      "browse",
+      "look",
+      "for",
+      "me",
+      "some",
+      "any",
+      "good",
+      "nice",
+      "options",
+      "cakes",
+      "cake",
+    ].includes(word));
+  return meaningfulWords.length === 0;
+}
+
+function isCakeQuery(query: string, args: VoiceSearchArgs = {}) {
+  return /\b(cake|cakes|birthday|bento)\b/i.test(`${query} ${args.q ?? ""} ${args.query ?? ""} ${args.category ?? ""}`);
 }
 
 function labelText(label?: string) {
@@ -878,7 +1000,17 @@ function HomeExperience() {
   const liveAssistantMessageIdRef = useRef<string | null>(null);
   const livePlaybackContextRef = useRef<AudioContext | null>(null);
   const latestVoiceProductsRef = useRef<Product[]>([]);
+  const voiceSearchInFlightRef = useRef<Map<string, Promise<Product[]>>>(new Map());
+  const voiceSearchStartedAtRef = useRef(0);
+  const recentVoiceSearchRef = useRef<Map<string, { at: number; products: Product[] }>>(new Map());
+  const voiceSearchMissRef = useRef<Map<string, number>>(new Map());
+  const lastVoiceSearchRef = useRef<{ query: string; key: string; args: VoiceSearchArgs } | null>(null);
+  const voiceSearchHistoryRef = useRef<{ key: string; ids: Set<string> } | null>(null);
   const orderPlacementInFlightRef = useRef(false);
+  const orderPlacementPromiseRef = useRef<Promise<OrderCreatedMetadata | null> | null>(null);
+  const lastPlacedOrderSignatureRef = useRef("");
+  const lastPlacedOrderRef = useRef<OrderCreatedMetadata | null>(null);
+  const lastPlacedOrderAtRef = useRef(0);
   const lastOrderErrorRef = useRef("");
 
   const openLiveCall = useCallback(() => {
@@ -1578,12 +1710,111 @@ function HomeExperience() {
     }
   }, []);
 
+  const voiceSearchResultText = useCallback((hasProducts: boolean) => {
+    if (hasProducts) {
+      if (conversationLanguageRef.current === "ta") {
+        return "இதோ closest options. Number சொல்லுங்க, name சொல்லுங்க, இல்ல tap பண்ணுங்க.";
+      }
+      if (conversationLanguageRef.current === "si") {
+        return "මෙන්න closest options ටික. Number එකක් කියන්න, name එක කියන්න, නැත්නම් tap කරන්න.";
+      }
+      return "Here are the closest options. Say a number, say a name, or tap one.";
+    }
+    if (conversationLanguageRef.current === "ta") {
+      return "Aiyo, இந்த specific item exact match ஆக கிடைக்கல. வேற option பார்க்கலாமா?";
+    }
+    if (conversationLanguageRef.current === "si") {
+      return "Aiyo, මේ specific එක Kapruka එකේ clean match වෙන්නේ නෑ වගේ. වෙන option එකක් බලමුද?";
+    }
+    return "Aiyo, I could not find a clean match for that exact item. Want to try a nearby option?";
+  }, []);
+
+  const ensureVoiceProductsMessage = useCallback((products: Product[]) => {
+    if (!products.length) return;
+    const productIds = new Set(products.map((product) => product.id));
+    setMessages((prev) => {
+      const alreadyVisible = prev.some((message) =>
+        message.source === "voice" &&
+        message.products?.some((product) => productIds.has(product.id))
+      );
+      if (alreadyVisible) return prev;
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          source: "voice",
+          text: voiceSearchResultText(true),
+          products,
+          label: "SEARCH_RESULT",
+          quickReplies: ["Check delivery cost", "Add selected to cart"],
+        },
+      ];
+    });
+  }, [voiceSearchResultText]);
+
   const searchProductsDuringVoice = useCallback(async (query: string, args: VoiceSearchArgs = {}) => {
     const explicitQuery = args.q ?? args.query;
-    const normalizedQuery = String(explicitQuery ?? query).trim();
+    const requestedQuery = String(explicitQuery ?? query).trim();
+    if (!requestedQuery) return [];
+    const wantsMore = args.mode === "more" || isMoreOptionsRequest(query) || isMoreOptionsRequest(requestedQuery);
+    const strippedMoreQuery = wantsMore ? stripMoreOptionsWords(requestedQuery) : "";
+    const normalizedQuery = wantsMore
+      ? strippedMoreQuery || lastVoiceSearchRef.current?.query || inferSearchQueryFromProducts(latestVoiceProductsRef.current) || requestedQuery
+      : requestedQuery;
     if (!normalizedQuery) return [];
+    const baseDedupeKey = voiceSearchKey(normalizedQuery, args) || normalizedQuery.toLowerCase();
+    const historyForQuery = voiceSearchHistoryRef.current?.key === baseDedupeKey
+      ? voiceSearchHistoryRef.current
+      : null;
+    const seenIds = wantsMore
+      ? new Set<string>(historyForQuery?.ids ?? latestVoiceProductsRef.current.map((product) => product.id))
+      : new Set<string>();
+    const dedupeKey = wantsMore
+      ? `${baseDedupeKey}|more|${Array.from(seenIds).sort().join(",")}`
+      : baseDedupeKey;
+    const now = Date.now();
+    const recentSearch = recentVoiceSearchRef.current.get(dedupeKey);
+    if (!wantsMore && recentSearch && now - recentSearch.at < 4500) {
+      ensureVoiceProductsMessage(recentSearch.products);
+      return recentSearch.products;
+    }
+    const lastMissAt = voiceSearchMissRef.current.get(dedupeKey);
+    if (lastMissAt && now - lastMissAt < 30000) {
+      return [];
+    }
+    const activeSearch = voiceSearchInFlightRef.current.get(dedupeKey);
+    if (activeSearch) {
+      return activeSearch;
+    }
+    if (voiceSearchInFlightRef.current.size > 0 && now - voiceSearchStartedAtRef.current < 2600) {
+      const [, existingSearch] = Array.from(voiceSearchInFlightRef.current.entries())[0] ?? [];
+      if (existingSearch) return existingSearch;
+    }
+
+    let resolveInFlight!: (products: Product[]) => void;
+    const inFlightPromise = new Promise<Product[]>((resolve) => {
+      resolveInFlight = resolve;
+    });
+    voiceSearchInFlightRef.current.set(dedupeKey, inFlightPromise);
+    voiceSearchStartedAtRef.current = now;
+    const finishVoiceSearch = (products: Product[]) => {
+      recentVoiceSearchRef.current.set(dedupeKey, { at: Date.now(), products });
+      for (const [key, value] of recentVoiceSearchRef.current) {
+        if (Date.now() - value.at > 15000) {
+          recentVoiceSearchRef.current.delete(key);
+        }
+      }
+      resolveInFlight(products);
+      if (voiceSearchInFlightRef.current.get(dedupeKey) === inFlightPromise) {
+        voiceSearchInFlightRef.current.delete(dedupeKey);
+      }
+      return products;
+    };
+
     const hasExplicitQuery = explicitQuery != null && String(explicitQuery).trim().length > 0;
     const limit = Math.max(1, Math.min(8, Number(args.limit ?? 8) || 8));
+    const requestLimit = wantsMore ? Math.min(24, Math.max(limit + seenIds.size + 8, limit * 2)) : limit;
     const maxPrice = args.max_price == null ? null : Number(args.max_price);
     const priceFilter = typeof maxPrice === "number" && Number.isFinite(maxPrice) ? maxPrice : undefined;
 
@@ -1591,9 +1822,10 @@ function HomeExperience() {
       query: searchQuery,
       ...(forceExactQuery ? { q: searchQuery } : {}),
       category: args.category ?? undefined,
-      limit,
+      limit: requestLimit,
       max_price: priceFilter,
       sort: args.sort ?? "relevance",
+      source: "voice",
       context: {
         occasion: voiceSession.detectedOccasion,
         budget: voiceSession.detectedBudget,
@@ -1612,16 +1844,6 @@ function HomeExperience() {
       return data.results ?? [];
     };
 
-    const broadFallbackQuery = (() => {
-      const lower = normalizedQuery.toLowerCase();
-      if (/\b(cakes?|bento|icing)\b/.test(lower)) return "cake";
-      if (/\b(chocolates?|choco|ferrero|truffle)\b/.test(lower)) return "chocolate";
-      if (/\b(flowers?|roses?|bouquet)\b/.test(lower)) return "roses";
-      if (/\b(biscuits?|cookies?|crackers?)\b/.test(lower)) return "biscuits";
-      if (/\b(hampers?|gift\s*box|gift)\b/.test(lower)) return "gift hamper";
-      return null;
-    })();
-
     const assistantId = crypto.randomUUID();
     setMessages((prev) => [
       ...prev,
@@ -1636,39 +1858,71 @@ function HomeExperience() {
     ]);
 
     try {
-      let products = await runSearch(searchBody(normalizedQuery, hasExplicitQuery));
-      if (!products.length && hasExplicitQuery) {
-        products = await runSearch(searchBody(normalizedQuery, false));
-      }
-      if (!products.length && broadFallbackQuery && broadFallbackQuery.toLowerCase() !== normalizedQuery.toLowerCase()) {
-        products = await runSearch(searchBody(broadFallbackQuery, true));
-      }
+      const rawProducts = await runSearch(searchBody(normalizedQuery, hasExplicitQuery && !wantsMore));
+      const products = wantsMore
+        ? rawProducts.filter((product) => !seenIds.has(product.id)).slice(0, limit)
+        : rawProducts.slice(0, limit);
 
       products.forEach((product) => prefetchProductDetail(product.id));
-      syncShownProducts(products);
+      if (!products.length) {
+        voiceSearchMissRef.current.set(dedupeKey, Date.now());
+      } else {
+        voiceSearchMissRef.current.delete(dedupeKey);
+      }
+      if (!wantsMore || products.length) {
+        syncShownProducts(products);
+      }
+      if (products.length) {
+        const nextIds = wantsMore ? new Set(seenIds) : new Set<string>();
+        products.forEach((product) => nextIds.add(product.id));
+        voiceSearchHistoryRef.current = { key: baseDedupeKey, ids: nextIds };
+        lastVoiceSearchRef.current = { query: normalizedQuery, key: baseDedupeKey, args };
+      }
       if (products[0]) {
         setSelectedProduct({ product: products[0] });
         setRightTab("product");
         setDetailOpen(true);
       }
 
+      const searchResultText = products.length && wantsMore
+        ? "Here are more options I found. Say a number, say a name, or tap one."
+        : wantsMore
+          ? "I could not find new options beyond the ones already shown. Want me to try a different type?"
+          : voiceSearchResultText(products.length > 0);
+      /*
+        if (products.length) {
+          if (conversationLanguageRef.current === "ta") {
+            return "இதோ closest options. Number சொல்லுங்க, name சொல்லுங்க, இல்ல tap பண்ணுங்க.";
+          }
+          if (conversationLanguageRef.current === "si") {
+            return "මෙන්න closest options ටික. Number එකක් කියන්න, name එක කියන්න, නැත්නම් tap කරන්න.";
+          }
+          return "Here are the closest options. Say a number, say a name, or tap one.";
+        }
+        if (conversationLanguageRef.current === "ta") {
+          return "Aiyo, இந்த specific item exact match ஆக கிடைக்கல. வேற cake type பார்க்கலாமா, இல்ல chocolate cake options பார்க்கலாமா?";
+        }
+        if (conversationLanguageRef.current === "si") {
+          return "Aiyo, මේ specific එක Kapruka එකේ clean match වෙන්නේ නෑ වගේ. වෙන cake type එකක් බලමුද, නැත්නම් chocolate cake options බලමුද?";
+        }
+        return "Aiyo, I could not find a clean match for that exact item. Want to try another cake type or chocolate cake options?";
+      */
+
       setMessages((prev) =>
         prev.map((message) =>
           message.id === assistantId
             ? {
                 ...message,
-                text: products.length
-                  ? `Mewa closest options tika. Number ekak kiyanna, name ekak kiyanna, hari tap karanna.`
-                  : "Aiyo, clean match ekak hambune na. Thawa poddak specific kiyanna?",
+                text: searchResultText,
                 products: products.length ? products : undefined,
                 label: products.length ? "SEARCH_RESULT" : "AI_RECOMMENDATION",
-                quickReplies: products.length ? ["Check delivery cost", "Add selected to cart"] : ["Try another search"],
+                quickReplies: products.length ? ["Show more options", "Check delivery cost", "Add selected to cart"] : ["Show chocolate cakes", "Try birthday cakes", "Try gift hampers"],
                 isStreaming: false,
               }
             : message
         )
       );
-      return products;
+      return finishVoiceSearch(products);
     } catch (error) {
       const fallback = error instanceof Error ? error.message : "Aiyo, voice search failed. Try again?";
       setMessages((prev) =>
@@ -1682,9 +1936,9 @@ function HomeExperience() {
             : message
         )
       );
-      return [];
+      return finishVoiceSearch([]);
     }
-  }, [city, syncShownProducts, voiceSession.detectedBudget, voiceSession.detectedCity, voiceSession.detectedOccasion]);
+  }, [city, ensureVoiceProductsMessage, syncShownProducts, voiceSearchResultText, voiceSession.detectedBudget, voiceSession.detectedCity, voiceSession.detectedOccasion]);
 
   const handleVoiceShoppingIntent = useCallback(async (text: string, args: VoiceSearchArgs = {}) => {
     const selected = resolveProductReference(text, voiceSession.shownProducts);
@@ -2307,7 +2561,14 @@ function HomeExperience() {
       if (needsColomboZone) {
         return "Kapruka needs the exact Colombo delivery zone. Can you change the city to Colombo 01, Colombo 02, Colombo 03, or the correct Colombo number?";
       }
-      return `${errorMessage} Want me to fix the delivery city or date and try again?`;
+      const cleanMessage = /cart|empty/i.test(errorMessage)
+        ? "The cart is empty."
+        : /stock|out.?of.?stock/i.test(errorMessage)
+          ? "One of the items may be out of stock."
+          : /city|deliver|delivery|available|date/i.test(errorMessage)
+            ? "There is a delivery city or date issue."
+            : "Something went wrong while creating the order.";
+      return `${cleanMessage} Want me to fix it and try again?`;
     }
     if (needsColomboZone) {
       return "Kapruka ekata exact Colombo delivery zone eka one. City eka Colombo 01, Colombo 02, Colombo 03 wage correct number ekata change karamu da?";
@@ -2807,84 +3068,122 @@ function HomeExperience() {
     return updatedDraft;
   }
 
+  function orderPlacementSignature(draft: OrderDraft) {
+    return JSON.stringify({
+      items: draft.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        icingText: item.icingText || "",
+      })),
+      recipientName: draft.recipientName || "",
+      recipientPhone: draft.recipientPhone || "",
+      deliveryAddress: draft.deliveryAddress || "",
+      deliveryCity: draft.deliveryCity || "",
+      deliveryDate: draft.deliveryDate || "",
+      locationType: draft.locationType || "house",
+      deliveryInstructions: draft.deliveryInstructions || "",
+      senderName: draft.senderName || "",
+      anonymous: draft.anonymous ?? false,
+      giftMessage: draft.giftMessage || "",
+    });
+  }
+
   async function placeOrderFromDraft(draft: OrderDraft) {
-    if (orderPlacementInFlightRef.current) {
-      return null;
+    const signature = orderPlacementSignature(draft);
+    if (orderPlacementPromiseRef.current) {
+      return orderPlacementPromiseRef.current;
     }
-    orderPlacementInFlightRef.current = true;
-    lastOrderErrorRef.current = "";
-    let placingDraft = { ...draft, stage: "placing" as const };
-    setOrderDraft(placingDraft);
-    setBusyAction("order");
-    setRightTab("order");
-    setDetailOpen(true);
+    if (
+      lastPlacedOrderRef.current &&
+      lastPlacedOrderSignatureRef.current === signature &&
+      Date.now() - lastPlacedOrderAtRef.current < 5 * 60 * 1000
+    ) {
+      return lastPlacedOrderRef.current;
+    }
 
-    try {
-      placingDraft = { ...(await prepareDraftForOrder(placingDraft)), stage: "placing" as const };
-      setOrderDraft(placingDraft);
-      const res = await fetch("/api/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cart: placingDraft.items.map((item) => ({
-            product_id: item.productId,
-            quantity: item.quantity,
-            icing_text: item.icingText || null,
-          })),
-          recipient: {
-            name: placingDraft.recipientName,
-            phone: placingDraft.recipientPhone,
-          },
-          delivery: {
-            address: placingDraft.deliveryAddress,
-            city: placingDraft.deliveryCity,
-            date: placingDraft.deliveryDate,
-            location_type: placingDraft.locationType ?? "house",
-            instructions: placingDraft.deliveryInstructions || null,
-          },
-          sender: {
-            name: placingDraft.senderName || "Kade AI shopper",
-            anonymous: placingDraft.anonymous ?? false,
-          },
-          gift_message: placingDraft.giftMessage || null,
-          currency: "LKR",
-        }),
-      });
-
-      const data = (await res.json()) as OrderCreatedMetadata & { reply?: string; error?: string };
-      if (!res.ok || !data.checkoutUrl) {
-        throw new Error(data.reply || data.error || "Order creation failed");
-      }
-
+    const placement = (async () => {
+      orderPlacementInFlightRef.current = true;
       lastOrderErrorRef.current = "";
-      setOrderResult(data);
-      setOrder(data as unknown as Record<string, unknown>);
-      setOrderDraft({
-        ...placingDraft,
-        stage: "complete",
-        checkoutUrl: data.checkoutUrl,
-        orderRef: data.orderRef,
-        grandTotal: data.summary.grandTotal,
-        expiresAt: data.expiresAt,
-      });
-      clearOrderDraft();
-      saveRecentCart();
-      const copy = orderCopy(currentOrderLanguage());
-      addAssistantMessage(
-        `${copy.orderCreated}\n\n${copy.paySoon}\n\n${copy.deliveryOn} ${formatOrderDate(placingDraft.deliveryDate)} ${copy.toCity} ${placingDraft.deliveryCity}. ${copy.didGood}`,
-        ["Open payment link", "Track my order"]
-      );
-      return data;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Aiyo, something went wrong - want to try again?";
-      lastOrderErrorRef.current = message;
-      setOrderDraft({ ...placingDraft, stage: "error", errorMessage: message });
-      addAssistantMessage(message, ["Try again", "Edit details"]);
-      return null;
-    } finally {
-      orderPlacementInFlightRef.current = false;
-      setBusyAction(null);
-    }
+      let placingDraft = { ...draft, stage: "placing" as const };
+      setOrderDraft(placingDraft);
+      setBusyAction("order");
+      setRightTab("order");
+      setDetailOpen(true);
+
+      try {
+        placingDraft = { ...(await prepareDraftForOrder(placingDraft)), stage: "placing" as const };
+        setOrderDraft(placingDraft);
+        const res = await fetch("/api/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cart: placingDraft.items.map((item) => ({
+              product_id: item.productId,
+              quantity: item.quantity,
+              icing_text: item.icingText || null,
+            })),
+            recipient: {
+              name: placingDraft.recipientName,
+              phone: placingDraft.recipientPhone,
+            },
+            delivery: {
+              address: placingDraft.deliveryAddress,
+              city: placingDraft.deliveryCity,
+              date: placingDraft.deliveryDate,
+              location_type: placingDraft.locationType ?? "house",
+              instructions: placingDraft.deliveryInstructions || null,
+            },
+            sender: {
+              name: placingDraft.senderName || "Kade AI shopper",
+              anonymous: placingDraft.anonymous ?? false,
+            },
+            gift_message: placingDraft.giftMessage || null,
+            currency: "LKR",
+          }),
+        });
+
+        const data = (await res.json()) as OrderCreatedMetadata & { reply?: string; error?: string };
+        if (!res.ok || !data.checkoutUrl) {
+          throw new Error(data.reply || data.error || "Order creation failed");
+        }
+
+        lastOrderErrorRef.current = "";
+        lastPlacedOrderSignatureRef.current = signature;
+        lastPlacedOrderRef.current = data;
+        lastPlacedOrderAtRef.current = Date.now();
+        setOrderResult(data);
+        setOrder(data as unknown as Record<string, unknown>);
+        setOrderDraft({
+          ...placingDraft,
+          stage: "complete",
+          checkoutUrl: data.checkoutUrl,
+          orderRef: data.orderRef,
+          grandTotal: data.summary.grandTotal,
+          expiresAt: data.expiresAt,
+        });
+        clearOrderDraft();
+        saveRecentCart();
+        const copy = orderCopy(currentOrderLanguage());
+        addAssistantMessage(
+          `${copy.orderCreated}\n\n${copy.paySoon}\n\n${copy.deliveryOn} ${formatOrderDate(placingDraft.deliveryDate)} ${copy.toCity} ${placingDraft.deliveryCity}. ${copy.didGood}`,
+          ["Open payment link", "Track my order"]
+        );
+        return data;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Aiyo, something went wrong - want to try again?";
+        lastOrderErrorRef.current = message;
+        setOrderDraft({ ...placingDraft, stage: "error", errorMessage: message });
+        addAssistantMessage(message, ["Try again", "Edit details"]);
+        return null;
+      } finally {
+        orderPlacementInFlightRef.current = false;
+        orderPlacementPromiseRef.current = null;
+        setBusyAction(null);
+      }
+    })();
+
+    orderPlacementPromiseRef.current = placement;
+    return placement;
   }
 
   function handleLocalOrderMessage(text: string, options: { appendUser?: boolean } = {}) {
@@ -3367,6 +3666,7 @@ function HomeExperience() {
                   <div
                     className={clsx(
                       styles.messageLabel,
+                      message.label === "SEARCH_RESULT" && styles.messageLabelSearch,
                       message.label === "DIRECT_LINK" && styles.messageLabelLink
                     )}
                   >
@@ -4325,6 +4625,9 @@ function LiveCallOverlay({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const nextPlayTimeRef = useRef(0);
   const playingSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  const outputCompressorRef = useRef<DynamicsCompressorNode | null>(null);
+  const liveReadyRef = useRef(false);
+  const pendingMicChunksRef = useRef<string[]>([]);
   const closeRequestedRef = useRef(false);
   const voiceBriefRef = useRef<string[]>([]);
   const lastDispatchedVoiceRef = useRef("");
@@ -4333,6 +4636,7 @@ function LiveCallOverlay({
   const inputTranscriptTimerRef = useRef<number | null>(null);
   const directSearchFallbackTimerRef = useRef<number | null>(null);
   const pendingDirectSearchRef = useRef("");
+  const pendingDirectSearchArgsRef = useRef<VoiceSearchArgs>({});
   const productActionFallbackTimerRef = useRef<number | null>(null);
   const pendingProductActionRef = useRef("");
   const audioChunkCountRef = useRef(0);
@@ -4437,22 +4741,27 @@ function LiveCallOverlay({
       directSearchFallbackTimerRef.current = null;
     }
     pendingDirectSearchRef.current = "";
+    pendingDirectSearchArgsRef.current = {};
   }, []);
 
-  const scheduleDirectSearchFallback = useCallback((text: string) => {
+  const scheduleDirectSearchFallback = useCallback((text: string, args: VoiceSearchArgs = {}) => {
     pendingDirectSearchRef.current = text;
+    pendingDirectSearchArgsRef.current = args;
     if (directSearchFallbackTimerRef.current) {
       window.clearTimeout(directSearchFallbackTimerRef.current);
     }
     directSearchFallbackTimerRef.current = window.setTimeout(() => {
       directSearchFallbackTimerRef.current = null;
       const pendingText = pendingDirectSearchRef.current.trim();
+      const pendingArgs = pendingDirectSearchArgsRef.current;
       pendingDirectSearchRef.current = "";
+      pendingDirectSearchArgsRef.current = {};
       if (!pendingText || pendingText === lastDispatchedVoiceRef.current) return;
+      if (isBroadCakeSearch(pendingText)) return;
       lastDispatchedVoiceRef.current = pendingText;
       voiceBriefRef.current = [];
       setTranscript("Searching Kapruka...");
-      void onShoppingRequestRef.current(pendingText);
+      void onShoppingRequestRef.current(pendingText, pendingArgs);
     }, 1800);
   }, []);
 
@@ -4508,6 +4817,16 @@ function LiveCallOverlay({
       return;
     }
 
+    const looksLikeMoreOptions =
+      shownProductsRef.current.length > 0 &&
+      isMoreOptionsRequest(normalizedText);
+    if (looksLikeMoreOptions) {
+      clearProductActionFallback();
+      setTranscript("Searching for more options...");
+      scheduleDirectSearchFallback(normalizedText, { mode: "more" });
+      return;
+    }
+
     const looksLikeProductReference =
       shownProductsRef.current.length > 0 &&
       (/\b(number|no\.?|one|two|three|four|five|first|second|third|cheap|cheapest|best|hoda|laabu|eka|deka|thuna)\b/.test(lower) ||
@@ -4535,7 +4854,6 @@ function LiveCallOverlay({
       if (lastBrief !== normalizedText) {
         voiceBriefRef.current = [...voiceBriefRef.current, normalizedText].slice(-6);
       }
-      scheduleDirectSearchFallback(normalizedText);
       return;
     }
 
@@ -4558,10 +4876,7 @@ function LiveCallOverlay({
     }
     if (searchText.length < 3 || searchText === lastDispatchedVoiceRef.current) return;
 
-    lastDispatchedVoiceRef.current = searchText;
     voiceBriefRef.current = [];
-    setTranscript("Searching Kapruka...");
-    onShoppingRequestRef.current(searchText);
   }, [clearDirectSearchFallback, clearProductActionFallback, scheduleDirectSearchFallback, scheduleProductActionFallback]);
 
   const sendToolResponse = useCallback((functionCall: FunctionCall, response: Record<string, unknown>) => {
@@ -4609,6 +4924,69 @@ function LiveCallOverlay({
     }, 700);
   }, []);
 
+  const liveToolPhrase = useCallback((toolName: string, phase: "start" | "ready", count = 0) => {
+    const language = lockedLanguageRef.current;
+    const isSearch = toolName === "kapruka_search_products" || toolName === "search_products";
+    const isDelivery = toolName === "kapruka_check_delivery" || toolName === "check_delivery";
+    const isOrder = toolName === "confirm_and_place_order" || toolName === "checkout_place_order";
+    const isTracking = toolName === "kapruka_track_order" || toolName === "track_order";
+
+    if (phase === "ready" && isSearch) {
+      if (language === "ta") {
+        return count > 0 ? `கிடைத்தது! ${count} options இருக்கு - பாருங்க.` : "Aiyo, exact match கிடைக்கல. வேற option பார்க்கலாமா?";
+      }
+      if (language === "si") {
+        return count > 0 ? `හොයාගත්තා! options ${count}ක් තියෙනවා - බලන්න.` : "Aiyo, exact match එක නෑ වගේ. වෙන option එකක් බලමුද?";
+      }
+      return count > 0 ? `Found ${count} good options for you.` : "I could not find that exact one. Want to try a nearby option?";
+    }
+
+    if (isSearch) {
+      if (language === "ta") return "சரி, Kaprukaல check பண்ணுறேன்.";
+      if (language === "si") return "හරි, Kapruka එකේ බලනවා.";
+      return "Let me search Kapruka for that.";
+    }
+    if (isDelivery) {
+      if (language === "ta") return "Delivery availability check பண்ணுறேன்.";
+      if (language === "si") return "Delivery availability එක check කරනවා.";
+      return "Checking delivery availability.";
+    }
+    if (isOrder) {
+      if (language === "ta") return "Order setup பண்ணுறேன்.";
+      if (language === "si") return "Order එක setup කරනවා.";
+      return "Setting up your order now.";
+    }
+    if (isTracking) {
+      if (language === "ta") return "Order status பார்க்குறேன்.";
+      if (language === "si") return "Order status එක බලනවා.";
+      return "Looking up your order status.";
+    }
+    return "";
+  }, []);
+
+  const liveOrderFailurePhrase = useCallback(() => {
+    const language = lockedLanguageRef.current;
+    if (language === "ta") {
+      return "Order create panna mudiyala. Details check pannitu again try pannalama?";
+    }
+    if (language === "si") {
+      return "Order eka hadaganna bari una. Details tika check karala ayeth try karamu da?";
+    }
+    return "The order did not go through on my side. Want me to check the details and try again?";
+  }, []);
+
+  const promptLiveToSpeakNow = useCallback((text: string) => {
+    const spokenText = text.trim();
+    if (!spokenText || statusRef.current === "speaking") return;
+    try {
+      sessionRef.current?.sendRealtimeInput({
+        text: `[INTERNAL UI EVENT - do not call tools for this message. Say this aloud naturally and briefly: "${spokenText}"]`,
+      });
+    } catch {
+      // Ignore if the Live socket is between turns.
+    }
+  }, []);
+
   const executeLiveToolCall = useCallback(async (functionCall: FunctionCall) => {
     const name = functionCall.name ?? "";
     const rawArgs = (functionCall.args ?? {}) as Record<string, unknown>;
@@ -4629,6 +5007,7 @@ function LiveCallOverlay({
 
     if (name === "kapruka_check_delivery" || name === "check_delivery") {
       try {
+        promptLiveToSpeakNow(liveToolPhrase(name, "start"));
         clearDirectSearchFallback();
         clearProductActionFallback();
         setCheckoutStatus("");
@@ -4719,6 +5098,7 @@ function LiveCallOverlay({
 
     if (name === "confirm_and_place_order") {
       try {
+        promptLiveToSpeakNow(liveToolPhrase(name, "start"));
         clearDirectSearchFallback();
         clearProductActionFallback();
         checkoutActiveRef.current = true;
@@ -4734,7 +5114,7 @@ function LiveCallOverlay({
         sendToolResponse(functionCall, {
           error: error instanceof Error ? error.message : "Could not place order.",
         });
-        nudgeLiveToSpeak("Aiyo, order eka hadaganna bari una ne - again try karamu da?");
+        nudgeLiveToSpeak(liveOrderFailurePhrase());
       }
       return;
     }
@@ -4805,14 +5185,36 @@ function LiveCallOverlay({
       });
       return;
     }
+    const isMoreSearch = args.mode === "more" || isMoreOptionsRequest(lastHandledInputTranscriptRef.current) || isMoreOptionsRequest(q);
+    if (!isMoreSearch && (isBroadCakeSearch(q, args) || (isBroadCakeSearch(lastHandledInputTranscriptRef.current) && isCakeQuery(q, args)))) {
+      const question = lockedLanguageRef.current === "ta"
+        ? "Cake பார்க்கலாம். Birthday cake வேண்டுமா, chocolate cake வேண்டுமா, இல்ல simple tea-time cake வேண்டுமா?"
+        : lockedLanguageRef.current === "si"
+          ? "Cake බලමු. Birthday cake එකක්ද, chocolate cake එකක්ද, නැත්නම් simple tea-time cake එකක්ද?"
+          : "Sure, what kind of cake should I look for - birthday cake, chocolate cake, or a simple tea-time cake?";
+      sendToolResponse(functionCall, {
+        output: {
+          needs_clarification: true,
+          query: q,
+          rendered_in_ui: false,
+          count: 0,
+          instruction: "Do not search yet. Ask this one clarifying question and wait for the answer: " + question,
+        },
+      });
+      promptLiveToSpeakNow(question);
+      return;
+    }
 
     try {
+      promptLiveToSpeakNow(liveToolPhrase(name, "start"));
       clearDirectSearchFallback();
       voiceBriefRef.current = [];
       lastDispatchedVoiceRef.current = q;
       setTranscript("Checking Kapruka...");
-      const maybeProducts = await onShoppingRequestRef.current(q, args);
+      const searchArgs = isMoreSearch ? { ...args, mode: "more" } : args;
+      const maybeProducts = await onShoppingRequestRef.current(q, searchArgs);
       const products = Array.isArray(maybeProducts) ? maybeProducts : [];
+      promptLiveToSpeakNow(liveToolPhrase(name, "ready", products.length));
       const compactProducts = products.slice(0, 8).map((product, index) => ({
         index: index + 1,
         id: product.id,
@@ -4829,9 +5231,14 @@ function LiveCallOverlay({
           rendered_in_ui: products.length > 0,
           count: products.length,
           products: compactProducts,
+          more_search: isMoreSearch,
           instruction: products.length > 0
-            ? "Product cards are visible in the UI. Mention the best options by number, name, and price."
-            : "No product cards were rendered. Do not tell the user they can see products. Retry once with a broader query or ask one short clarifying question.",
+            ? isMoreSearch
+              ? "New product cards are visible in the UI. Say these are more options and ask the user to pick by number, name, or tap."
+              : "Product cards are visible in the UI. Mention the best options by number, name, and price."
+            : isMoreSearch
+              ? "No additional product cards were rendered. Do not say you found more. Tell the user there are no new options beyond the ones already shown and ask one short alternative question."
+              : "No product cards were rendered. Do not call kapruka_search_products again for this same request. Tell the user this exact specific item was not found and ask one short alternative question.",
         },
       });
     } catch (error) {
@@ -4839,7 +5246,7 @@ function LiveCallOverlay({
         error: error instanceof Error ? error.message : "Kapruka search failed.",
       });
     }
-  }, [clearDirectSearchFallback, clearProductActionFallback, nudgeLiveToSpeak, sendToolResponse]);
+  }, [clearDirectSearchFallback, clearProductActionFallback, liveToolPhrase, nudgeLiveToSpeak, promptLiveToSpeakNow, sendToolResponse]);
 
   const scheduleInputTranscriptFlush = useCallback((text: string) => {
     const normalizedText = text.trim();
@@ -4852,6 +5259,16 @@ function LiveCallOverlay({
       inputTranscriptTimerRef.current = null;
       handleVoiceTranscript(pendingInputTranscriptRef.current);
     }, 650);
+  }, [handleVoiceTranscript]);
+
+  const commitPendingInputTranscript = useCallback(() => {
+    const pendingText = pendingInputTranscriptRef.current.trim();
+    if (pendingText.length < 3 || pendingText === lastHandledInputTranscriptRef.current) return;
+    if (inputTranscriptTimerRef.current) {
+      window.clearTimeout(inputTranscriptTimerRef.current);
+      inputTranscriptTimerRef.current = null;
+    }
+    handleVoiceTranscript(pendingText);
   }, [handleVoiceTranscript]);
 
   const mergeTranscriptChunk = useCallback((current: string, next: string) => {
@@ -4880,9 +5297,105 @@ function LiveCallOverlay({
     nextPlayTimeRef.current = 0;
   }, []);
 
+  const getPlaybackOutput = useCallback((ctx: AudioContext) => {
+    if (!outputCompressorRef.current || outputCompressorRef.current.context !== ctx) {
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 18;
+      compressor.ratio.value = 3;
+      compressor.attack.value = 0.006;
+      compressor.release.value = 0.16;
+      compressor.connect(ctx.destination);
+      outputCompressorRef.current = compressor;
+    }
+    return outputCompressorRef.current;
+  }, []);
+
+  const flushPendingMicChunks = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session || pendingMicChunksRef.current.length === 0) return;
+    const chunks = pendingMicChunksRef.current.splice(0);
+    for (const data of chunks) {
+      session.sendRealtimeInput({
+        audio: {
+          data,
+          mimeType: "audio/pcm;rate=16000",
+        },
+      });
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
-    
+    let cleanedUp = false;
+    const generation = activeLiveCallGeneration + 1;
+    activeLiveCallGeneration = generation;
+    const isCurrentCall = () => mounted && generation === activeLiveCallGeneration;
+
+    const cleanupLiveResources = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      mounted = false;
+      closeRequestedRef.current = true;
+      onContextSenderRef.current(null);
+      if (inputTranscriptTimerRef.current) {
+        window.clearTimeout(inputTranscriptTimerRef.current);
+        inputTranscriptTimerRef.current = null;
+      }
+      if (directSearchFallbackTimerRef.current) {
+        window.clearTimeout(directSearchFallbackTimerRef.current);
+        directSearchFallbackTimerRef.current = null;
+      }
+      pendingDirectSearchRef.current = "";
+      pendingDirectSearchArgsRef.current = {};
+      if (productActionFallbackTimerRef.current) {
+        window.clearTimeout(productActionFallbackTimerRef.current);
+        productActionFallbackTimerRef.current = null;
+      }
+      pendingProductActionRef.current = "";
+      pendingMicChunksRef.current = [];
+      liveReadyRef.current = false;
+      if (sessionRef.current) {
+        try {
+          sessionRef.current.close();
+        } catch {
+          // Session may already be closed.
+        }
+        sessionRef.current = null;
+      }
+      stopQueuedAudio();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      if (sourceRef.current) {
+        try {
+          sourceRef.current.disconnect();
+        } catch {
+          // Source may already be disconnected.
+        }
+        sourceRef.current = null;
+      }
+      if (processorRef.current) {
+        try {
+          processorRef.current.disconnect();
+        } catch {
+          // Processor may already be disconnected.
+        }
+        processorRef.current = null;
+      }
+      if (audioContextRef.current) {
+        void audioContextRef.current.close().catch(() => undefined);
+        audioContextRef.current = null;
+      }
+      if (stopActiveLiveCall === cleanupLiveResources) {
+        stopActiveLiveCall = null;
+      }
+    };
+
+    stopActiveLiveCall?.();
+    stopActiveLiveCall = cleanupLiveResources;
+
     const init = async () => {
       try {
         // Start microphone first so the Live session receives audio quickly after opening.
@@ -4896,7 +5409,7 @@ function LiveCallOverlay({
           },
         });
 
-        if (!mounted) {
+        if (!isCurrentCall()) {
           stream.getTracks().forEach(t => t.stop());
           return;
         }
@@ -4910,6 +5423,58 @@ function LiveCallOverlay({
 
         const source = ctx.createMediaStreamSource(stream);
         sourceRef.current = source;
+
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        processor.onaudioprocess = (e) => {
+          if (mutedRef.current) return;
+
+          const inputData = e.inputBuffer.getChannelData(0);
+          let audioLevel = 0;
+
+          const pcmData = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            audioLevel += Math.abs(s);
+            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          if (statusRef.current === "speaking") {
+            return;
+          }
+
+          const buffer = new Uint8Array(pcmData.buffer);
+          let binary = '';
+          for (let i = 0; i < buffer.byteLength; i++) {
+            binary += String.fromCharCode(buffer[i]);
+          }
+          const base64 = btoa(binary);
+
+          const session = sessionRef.current;
+          if (!isCurrentCall()) return;
+          if (!session || !liveReadyRef.current) {
+            const averageLevel = audioLevel / inputData.length;
+            if (averageLevel > 0.006) {
+              pendingMicChunksRef.current.push(base64);
+              pendingMicChunksRef.current = pendingMicChunksRef.current.slice(-10);
+            }
+            return;
+          }
+
+          session.sendRealtimeInput({
+            audio: {
+              data: base64,
+              mimeType: "audio/pcm;rate=16000",
+            },
+          });
+        };
+
+        const silentOutput = ctx.createGain();
+        silentOutput.gain.value = 0;
+        source.connect(processor);
+        processor.connect(silentOutput);
+        silentOutput.connect(ctx.destination);
 
         const tokenResponse = await fetch("/api/live-token", {
           method: "POST",
@@ -4927,6 +5492,8 @@ function LiveCallOverlay({
         });
         const tokenData = await tokenResponse.json();
 
+        if (!isCurrentCall()) return;
+
         if (!tokenResponse.ok || !tokenData.token || !tokenData.model) {
           throw new Error(tokenData.error || "Could not start Gemini Live.");
         }
@@ -4942,7 +5509,9 @@ function LiveCallOverlay({
           },
           callbacks: {
             onopen: () => {
-              if (!mounted) return;
+              if (!isCurrentCall()) return;
+              liveReadyRef.current = true;
+              flushPendingMicChunks();
               setStatus("listening");
               setTranscript("...");
               onContextSenderRef.current((text) => {
@@ -4954,25 +5523,20 @@ function LiveCallOverlay({
               });
             },
             onmessage: (message) => {
-              if (!mounted) return;
+              if (!isCurrentCall()) return;
               const functionCalls = message.toolCall?.functionCalls ?? [];
-              if (functionCalls.length > 0) {
-                void Promise.all(functionCalls.map((functionCall) => executeLiveToolCall(functionCall)));
-              }
-
               const serverContent = message.serverContent;
-              if (!serverContent) return;
 
-              if (serverContent.interrupted) {
+              if (serverContent?.interrupted) {
                 console.debug("[KADE Live] Gemini reported interruption; keeping queued audio for playback.");
               }
 
-              const inputTranscript = serverContent.inputTranscription?.text;
-              const outputTranscript = serverContent.outputTranscription?.text;
+              const inputTranscript = serverContent?.inputTranscription?.text;
+              const outputTranscript = serverContent?.outputTranscription?.text;
               if (inputTranscript) {
                 setTranscript(inputTranscript);
                 scheduleInputTranscriptFlush(inputTranscript);
-                if (serverContent.inputTranscription?.finished) {
+                if (serverContent?.inputTranscription?.finished) {
                   if (inputTranscriptTimerRef.current) {
                     window.clearTimeout(inputTranscriptTimerRef.current);
                     inputTranscriptTimerRef.current = null;
@@ -4980,7 +5544,16 @@ function LiveCallOverlay({
                   handleVoiceTranscript(inputTranscript);
                 }
               }
+
+              if (functionCalls.length > 0) {
+                commitPendingInputTranscript();
+                void Promise.all(functionCalls.map((functionCall) => executeLiveToolCall(functionCall)));
+              }
+
+              if (!serverContent) return;
+
               if (outputTranscript) {
+                commitPendingInputTranscript();
                 liveOutputCounterRef.current += 1;
                 const merged = mergeTranscriptChunk(latestOutputTranscriptRef.current, outputTranscript);
                 setTranscript(merged);
@@ -4996,6 +5569,7 @@ function LiveCallOverlay({
                   void playAudioChunk(part.inlineData.data, part.inlineData.mimeType);
                 }
                 if (part.text) {
+                  commitPendingInputTranscript();
                   liveOutputCounterRef.current += 1;
                   const merged = mergeTranscriptChunk(latestOutputTranscriptRef.current, part.text);
                   setTranscript(merged);
@@ -5015,10 +5589,10 @@ function LiveCallOverlay({
             },
             onerror: (event) => {
               console.error("Gemini Live error", event);
-              if (mounted) setTranscript("Gemini Live connection error.");
+              if (isCurrentCall()) setTranscript("Gemini Live connection error.");
             },
             onclose: (event) => {
-              if (!mounted) return;
+              if (!isCurrentCall()) return;
               if (closeRequestedRef.current || event.code === 1000) {
                 setTranscript("Call ended");
                 setTimeout(() => onCloseRef.current(), 900);
@@ -5030,56 +5604,23 @@ function LiveCallOverlay({
           },
         });
 
+        if (!isCurrentCall()) {
+          try {
+            session.close();
+          } catch {
+            // Session may already be closing.
+          }
+          return;
+        }
+
         sessionRef.current = session;
-        
-        // ScriptProcessorNode is deprecated but easiest for raw PCM without a separate worklet file
-        const processor = ctx.createScriptProcessor(4096, 1, 1);
-        processorRef.current = processor;
-
-        processor.onaudioprocess = (e) => {
-          if (mutedRef.current) return;
-          if (!sessionRef.current) return;
-
-          const inputData = e.inputBuffer.getChannelData(0);
-          let audioLevel = 0;
-          
-          // Convert Float32 to Int16
-          const pcmData = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            const s = Math.max(-1, Math.min(1, inputData[i]));
-            audioLevel += Math.abs(s);
-            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          }
-
-          if (statusRef.current === "speaking") {
-            return;
-          }
-          
-          // Convert to base64
-          const buffer = new Uint8Array(pcmData.buffer);
-          let binary = '';
-          for (let i = 0; i < buffer.byteLength; i++) {
-            binary += String.fromCharCode(buffer[i]);
-          }
-          const base64 = btoa(binary);
-
-          sessionRef.current.sendRealtimeInput({
-            audio: {
-              data: base64,
-              mimeType: "audio/pcm;rate=16000",
-            },
-          });
-        };
-
-        const silentOutput = ctx.createGain();
-        silentOutput.gain.value = 0;
-        source.connect(processor);
-        processor.connect(silentOutput);
-        silentOutput.connect(ctx.destination);
+        if (liveReadyRef.current) {
+          flushPendingMicChunks();
+        }
 
       } catch (err) {
         console.error("Setup error:", err);
-        if (mounted) {
+        if (isCurrentCall()) {
           setTranscript("Failed to access microphone or connect to server.");
         }
       }
@@ -5087,37 +5628,12 @@ function LiveCallOverlay({
 
     init();
 
-    return () => {
-      mounted = false;
-      closeRequestedRef.current = true;
-      onContextSenderRef.current(null);
-      if (inputTranscriptTimerRef.current) {
-        window.clearTimeout(inputTranscriptTimerRef.current);
-        inputTranscriptTimerRef.current = null;
-      }
-      if (directSearchFallbackTimerRef.current) {
-        window.clearTimeout(directSearchFallbackTimerRef.current);
-        directSearchFallbackTimerRef.current = null;
-      }
-      pendingDirectSearchRef.current = "";
-      if (productActionFallbackTimerRef.current) {
-        window.clearTimeout(productActionFallbackTimerRef.current);
-        productActionFallbackTimerRef.current = null;
-      }
-      pendingProductActionRef.current = "";
-      if (sessionRef.current) sessionRef.current.close();
-      stopQueuedAudio();
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      if (processorRef.current && sourceRef.current) {
-        sourceRef.current.disconnect();
-        processorRef.current.disconnect();
-      }
-      if (audioContextRef.current) audioContextRef.current.close();
-    };
-  }, [executeLiveToolCall, handleVoiceTranscript, mergeTranscriptChunk, scheduleInputTranscriptFlush, stopQueuedAudio, voiceName]);
+    return cleanupLiveResources;
+  }, [commitPendingInputTranscript, executeLiveToolCall, flushPendingMicChunks, handleVoiceTranscript, mergeTranscriptChunk, scheduleInputTranscriptFlush, stopQueuedAudio, voiceName]);
 
   // Decode base64 PCM Int16 to Float32 and play on a dedicated output context.
   const playAudioChunk = async (base64: string, mimeType?: string) => {
+    if (!liveReadyRef.current) return;
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) {
       setAudioDebug("audio unsupported");
@@ -5136,6 +5652,7 @@ function LiveCallOverlay({
     
     const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
     const sampleCount = Math.floor(buffer.byteLength / 2);
+    const sampleRate = Number(/rate=(\d+)/i.exec(mimeType ?? "")?.[1] ?? 24000);
     const float32Array = new Float32Array(sampleCount);
     let peak = 0;
     for (let i = 0; i < sampleCount; i++) {
@@ -5147,16 +5664,17 @@ function LiveCallOverlay({
     if (ctx.state === "suspended") {
       await ctx.resume();
     }
-    const audioBuffer = ctx.createBuffer(1, float32Array.length, 24000);
+    if (!liveReadyRef.current) return;
+    const audioBuffer = ctx.createBuffer(1, float32Array.length, sampleRate);
     const output = audioBuffer.getChannelData(0);
-    const gain = peak > 0.0001 ? Math.min(8, 0.85 / peak) : 1;
+    const gain = peak > 0.0001 ? Math.min(2.4, 0.72 / peak) : 1;
     for (let i = 0; i < float32Array.length; i++) {
       output[i] = Math.max(-1, Math.min(1, float32Array[i] * gain));
     }
 
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(ctx.destination);
+    source.connect(getPlaybackOutput(ctx));
     playingSourcesRef.current.push(source);
     source.onended = () => {
       playingSourcesRef.current = playingSourcesRef.current.filter((item) => item !== source);
@@ -5179,6 +5697,7 @@ function LiveCallOverlay({
       mimeType,
       contextState: ctx.state,
       duration: audioBuffer.duration,
+      sampleRate,
       queuedUntil: nextPlayTimeRef.current,
       peak,
       gain,

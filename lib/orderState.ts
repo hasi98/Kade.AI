@@ -94,6 +94,29 @@ function fallbackExpiry() {
   return new Date(Date.now() + 60 * 60 * 1000).toISOString();
 }
 
+function hasOrderResultSignal(record: UnknownRecord) {
+  return Boolean(
+    stringValue(record, ["checkoutUrl", "checkout_url", "pay_url", "payment_url", "url"]) ||
+    stringValue(record, ["orderRef", "order_ref", "reference", "ref", "pre_payment_reference"]) ||
+    Object.keys(asRecord(record.summary)).length
+  );
+}
+
+function findOrderResultRecord(value: unknown, depth = 0): UnknownRecord {
+  const record = asRecord(value);
+  if (!Object.keys(record).length || depth > 4) return record;
+  if (hasOrderResultSignal(record)) return record;
+
+  for (const key of ["order", "result", "data", "payload", "response"]) {
+    const nested = asRecord(record[key]);
+    if (!Object.keys(nested).length) continue;
+    const found = findOrderResultRecord(nested, depth + 1);
+    if (hasOrderResultSignal(found)) return found;
+  }
+
+  return record;
+}
+
 export function saveOrderDraft(draft: OrderDraft): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(ORDER_DRAFT_STORAGE_KEY, JSON.stringify(draft));
@@ -148,9 +171,7 @@ export function orderGrandTotal(draft: OrderDraft) {
 }
 
 export function normalizeOrderResult(input: unknown): OrderCreatedMetadata {
-  const root = asRecord(input);
-  const nested = asRecord(root.order);
-  const record = Object.keys(nested).length ? nested : root;
+  const record = findOrderResultRecord(input);
   const summaryRecord = asRecord(record.summary);
 
   const checkoutUrl =

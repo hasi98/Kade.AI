@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formatDeliveryResponse, normalizeDeliveryResult } from "@/lib/delivery";
 import { callKaprukaTool } from "@/lib/mcp";
 
 export async function POST(req: NextRequest) {
@@ -10,7 +11,11 @@ export async function POST(req: NextRequest) {
       product_id: body.product_id || null,
       response_format: "json"
     });
-    return NextResponse.json(result);
+    const delivery = normalizeDeliveryResult(result, String(body.city ?? "Colombo 07"));
+    return NextResponse.json({
+      reply: formatDeliveryResponse(delivery),
+      delivery,
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Delivery check failed" }, { status: 500 });
   }

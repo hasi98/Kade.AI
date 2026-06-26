@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
 import { asksForEdibleGift, assistantCopy, dislikesFlowers, extractSearchIntent } from "@/lib/agent";
 import { KADE_COMPLEX_PROMPT } from "@/lib/complex";
+import { formatDeliveryResponse, normalizeDeliveryResult } from "@/lib/delivery";
 import { chatWithTools, quickComplexStarter, researchGiftIdeas } from "@/lib/gemini";
+import { KADE_TEXT_SYSTEM_PROMPT } from "@/lib/personality";
 import { hasComplexShoppingSignal, hasEnoughInfoToSearch, isComplexIntent } from "@/lib/intent";
 import { callKaprukaTool } from "@/lib/mcp";
 import { alternateTextModel, MODELS, type TextModel } from "@/lib/models";
+import { formatOrderDate, normalizeOrderResult, type OrderCreatedMetadata } from "@/lib/orderState";
 import type { Product } from "@/lib/types";
-import type { Content } from "@google/genai";
+import { GoogleGenAI, type Content } from "@google/genai";
 
 /* ── MCP tool dispatcher ── */
 
@@ -23,12 +26,12 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
 
     case "check_delivery":
-      return callKaprukaTool("kapruka_check_delivery", {
+      return normalizeDeliveryResult(await callKaprukaTool("kapruka_check_delivery", {
         city: args.city,
         delivery_date: normalizeDeliveryDate(args.delivery_date),
         product_id: args.product_id ?? null,
         response_format: "json",
-      });
+      }), typeof args.city === "string" ? args.city : "Colombo 07");
 
     case "list_categories":
       return callKaprukaTool("kapruka_list_categories", {
@@ -50,7 +53,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
 
     case "create_order":
-      return callKaprukaTool("kapruka_create_order", {
+      return normalizeOrderResult(await callKaprukaTool("kapruka_create_order", {
         cart: args.cart,
         recipient: {
           name: args.recipient_name,
@@ -60,8 +63,8 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
           address: args.delivery_address,
           city: args.delivery_city,
           date: normalizeDeliveryDate(args.delivery_date) ?? sriLankaDate(1),
-          location_type: "house",
-          instructions: null,
+          location_type: args.location_type ?? "house",
+          instructions: args.delivery_instructions ?? null,
         },
         sender: {
           name: args.sender_name ?? "Kade AI shopper",
@@ -70,7 +73,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         gift_message: args.gift_message ?? null,
         currency: "LKR",
         response_format: "json",
-      });
+      }));
 
     default:
       return { error: `Unknown tool: ${name}` };
@@ -83,8 +86,23 @@ type SearchResult = {
   applied_filters?: Record<string, unknown>;
 };
 
+type ImageInput = {
+  base64: string;
+  mimeType: string;
+  userText?: string;
+};
+
+type VisionAnalysis = {
+  product_type: string;
+  features: string[];
+  search_queries: string[];
+  occasion?: string;
+  confidence: "low" | "medium" | "high" | string;
+};
+
 const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
 const searchCache = new Map<string, { expiresAt: number; value: SearchResult }>();
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const SINHALA_RE = /[\u0d80-\u0dff]/;
 const TAMIL_RE = /[\u0b80-\u0bff]/;
 const SINHALA_SHOPPING_RE = /හොය|බල|දෙන්න|ගන්න|යවන්න|කේක්|උපන්දින|මල්|රෝස|බිස්කට්|චොකලට්|චොක්ලට්|තෑගි|තෑග්ග|මිල|බජට්|අඩු/;
@@ -94,13 +112,53 @@ function isRomanticRecoveryQuery(rawQuery: string) {
   return /\b(girlfriend|gf|wife|love|romantic|sorry|apology|messed up|angry|mad|late|safe combo|safe apology combo|apology combo|make it grand)\b/i.test(rawQuery);
 }
 
+const SINGLISH_FOOD_SIGNALS = [
+  "kana dewal",
+  "kanna kemathi",
+  "food kemathi",
+  "kema kemathi",
+  "hodha kanna",
+  "hoda kanna",
+  "chocolate kemathi",
+  "sweet kemathi",
+  "cake kemathi",
+];
+
+const SINGLISH_FASHION_SIGNALS = [
+  "nattam kemathi",
+  "dress kemathi",
+  "style kemathi",
+  "fashion kemathi",
+];
+
+const SINGLISH_SELFCARE_SIGNALS = [
+  "self care kemathi",
+  "beauty kemathi",
+  "skin kemathi",
+  "spa kemathi",
+];
+
+function hasPhrase(rawQuery: string, phrases: string[]) {
+  const lower = rawQuery.toLowerCase();
+  return phrases.some((phrase) => lower.includes(phrase));
+}
 
 function isFoodGiftQuery(rawQuery: string) {
-  return /\b(foodie|food lover|likes food|loves food|eat|edible|snack|snacks|sweet tooth|sweets?|dessert|gourmet|hamper|cakes?|chocolates?|biscuits?|cookies?|tea|coffee|fruit)\b/i.test(rawQuery);
+  return hasPhrase(rawQuery, SINGLISH_FOOD_SIGNALS) || /\b(foodie|food lover|likes food|loves food|eat|edible|snack|snacks|sweet tooth|sweets?|dessert|gourmet|hamper|cakes?|chocolates?|biscuits?|cookies?|tea|coffee|fruit)\b/i.test(rawQuery);
 }
+
+function isChocolateCakeQuery(rawQuery: string) {
+  const lower = rawQuery.toLowerCase();
+  return /\b(chocolate|choco|dark chocolate|white chocolate|soklet)\b/.test(lower) && /\b(cakes?|bento|gateau|keik)\b/.test(lower);
+}
+
 function normalizeSearchQuery(rawQuery: string) {
   const lower = rawQuery.toLowerCase();
   if (isRomanticRecoveryQuery(rawQuery)) return "romantic gift";
+  if (isChocolateCakeQuery(rawQuery)) return "chocolate cake";
+  if (hasPhrase(rawQuery, SINGLISH_FOOD_SIGNALS)) return "chocolate gift box";
+  if (hasPhrase(rawQuery, SINGLISH_FASHION_SIGNALS)) return "women fashion accessories";
+  if (hasPhrase(rawQuery, SINGLISH_SELFCARE_SIGNALS)) return "luxury spa gift set";
   if (/\b(foodie|food lover|likes food|loves food|edible|snack|snacks|gourmet)\b/.test(lower)) return "chocolate hamper";
   if (/\b(cakes?|birthday cake|birthday|ribbon cake|bento cake|keik)\b/.test(lower) || /කේක්|උපන්දින|கேக்|பிறந்தநாள்/.test(rawQuery)) return "birthday";
   if (/\b(flowers?|roses?|bouquet|mal|poo|pookal)\b/.test(lower) || /මල්|රෝස|பூ|மலர்|ரோஜா/.test(rawQuery)) return "roses";
@@ -113,6 +171,10 @@ function normalizeSearchQuery(rawQuery: string) {
 function relevanceKind(rawQuery: string) {
   const lower = rawQuery.toLowerCase();
   if (isRomanticRecoveryQuery(rawQuery)) return "romantic";
+  if (isChocolateCakeQuery(rawQuery)) return "chocolate_cake";
+  if (hasPhrase(rawQuery, SINGLISH_FOOD_SIGNALS)) return "food";
+  if (hasPhrase(rawQuery, SINGLISH_FASHION_SIGNALS)) return "fashion";
+  if (hasPhrase(rawQuery, SINGLISH_SELFCARE_SIGNALS)) return "selfcare";
   if (isFoodGiftQuery(rawQuery)) return "food";
   if (/\b(cakes?|birthday cake|birthday|ribbon cake|bento cake|keik)\b/.test(lower) || /කේක්|උපන්දින|கேக்|பிறந்தநாள்/.test(rawQuery)) return "cake";
   if (/\b(biscuits?|cookies?|crackers?|oreo|munchee|maliban|biskut)\b/.test(lower) || /බිස්කට්|பிஸ்கட்/.test(rawQuery)) return "biscuit";
@@ -393,22 +455,16 @@ async function deliveryAvailabilityReply(rawQuery: string) {
   const city = extractDeliveryCity(rawQuery);
   if (!city) return null;
 
-  const delivery = await callKaprukaTool<Record<string, unknown>>("kapruka_check_delivery", {
+  const rawDelivery = await callKaprukaTool<Record<string, unknown>>("kapruka_check_delivery", {
     city,
     delivery_date: sriLankaDate(1),
     product_id: null,
     response_format: "json",
   });
-  const cityName = String(delivery.city ?? city);
-  const rate = typeof delivery.rate === "number" ? ` Delivery fee is Rs. ${delivery.rate.toLocaleString("en-US")}.` : "";
-  const nextDate = typeof delivery.next_available_date === "string" ? delivery.next_available_date : null;
-  const available = delivery.available === true;
-  const reply = available
-    ? `Yes, Kapruka delivers to ${cityName}.${rate} Tell me what you want to send and I will keep the options practical for that city.`
-    : `Kapruka can deliver to ${cityName}, but the checked date looks full${nextDate ? `; next available date is ${nextDate}` : ""}.${rate} Tell me what kind of gift you want and I will avoid anything that does not fit.`;
+  const delivery = normalizeDeliveryResult(rawDelivery, city);
 
   return {
-    reply,
+    reply: formatDeliveryResponse(delivery),
     products: [],
     delivery,
     order: null,
@@ -425,6 +481,10 @@ function productText(product: Product) {
 function isRelevantProduct(product: Product, rawQuery: string) {
   const text = productText(product);
   const kind = relevanceKind(rawQuery);
+
+  if (kind === "chocolate_cake") {
+    return product.id.toLowerCase().startsWith("cake") && /\b(chocolate|choco|cocoa|fudge|brownie|gateau)\b/.test(text);
+  }
 
   if (kind === "cake") {
     return product.id.toLowerCase().startsWith("cake");
@@ -449,7 +509,7 @@ function isRelevantProduct(product: Product, rawQuery: string) {
 
   if (kind === "food") {
     const id = product.id.toLowerCase();
-    const nonFood = /\b(mug|cup|card|greeting|book|books|flower|flowers|rose|roses|bouquet|toy|teddy|perfume|jewellery|jewelry|watch|bra|google)\b/.test(text);
+    const nonFood = /\b(mug|cup|card|greeting|book|books|flower|flowers|rose|roses|bouquet|toy|teddy|perfume|jewellery|jewelry|watch|bra|google|dress|shoe|shoes|clothing|fashion|shirt|blouse|saree|bag|handbag|wallet)\b/.test(text);
     const edible =
       id.startsWith("cake") ||
       id.startsWith("chocolates") ||
@@ -457,6 +517,18 @@ function isRelevantProduct(product: Product, rawQuery: string) {
       id.includes("_groc") ||
       /\b(chocolate|ferrero|truffle|cake|bento|brownie|cookie|biscuit|cracker|snack|sweet|dessert|hamper|gourmet|tea|coffee|fruit|nuts|dates|kithul|honey|cupcake|cheese)\b/.test(text);
     return !nonFood && edible;
+  }
+
+  if (kind === "fashion") {
+    const food = /\b(chocolate|cake|biscuit|cookie|snack|sweet|hamper|grocery|tea|coffee|fruit)\b/.test(text);
+    const fashion = /\b(fashion|dress|clothing|shirt|blouse|saree|accessor|jewellery|jewelry|watch|bag|handbag|wallet|beauty)\b/.test(text);
+    return !food && fashion;
+  }
+
+  if (kind === "selfcare") {
+    const unrelated = /\b(dress|shoe|shoes|flower|rose|mug|card|book|toy)\b/.test(text);
+    const selfcare = /\b(spa|ceylon|beauty|skin|cosmetic|care|wellness|perfume|soap|lotion|bath|candle)\b/.test(text);
+    return !unrelated && selfcare;
   }
 
   if (kind === "romantic") {
@@ -474,6 +546,7 @@ async function searchKaprukaProducts(
 ) {
   const limit = Math.min(Math.max(options.limit || 8, 1), 20);
   const normalizedQuery = normalizeSearchQuery(rawQuery);
+  const kind = relevanceKind(rawQuery);
   const cacheKey = JSON.stringify({
     q: normalizedQuery,
     limit,
@@ -494,8 +567,32 @@ async function searchKaprukaProducts(
     response_format: "json",
   });
 
-  const uniqueProducts = Array.from(new Map((result.results ?? []).map((product) => [product.id, product])).values());
-  const products = uniqueProducts.filter((product) => isRelevantProduct(product, rawQuery)).slice(0, limit);
+  let uniqueProducts = Array.from(new Map((result.results ?? []).map((product) => [product.id, product])).values());
+  let products = uniqueProducts.filter((product) => isRelevantProduct(product, rawQuery)).slice(0, limit);
+
+  if (products.length < Math.min(3, limit) && (kind === "food" || kind === "fashion" || kind === "selfcare")) {
+    const retryTerms =
+      kind === "food"
+        ? ["gourmet food hamper", "Java chocolate", "premium sweet hamper"]
+        : kind === "fashion"
+          ? ["women fashion accessories", "fashion gift"]
+          : ["Spa Ceylon", "luxury spa gift set", "cosmetics gift"];
+
+    const retryResults = await Promise.all(retryTerms.map((q) =>
+      callKaprukaTool<SearchResult>("kapruka_search_products", {
+        q,
+        category: null,
+        limit: Math.max(limit, 10),
+        currency: "LKR",
+        max_price: options.max_price,
+        in_stock_only: true,
+        response_format: "json",
+      })
+    ));
+
+    uniqueProducts = Array.from(new Map(retryResults.flatMap((entry) => entry.results ?? []).map((product) => [product.id, product])).values());
+    products = uniqueProducts.filter((product) => isRelevantProduct(product, rawQuery)).slice(0, limit);
+  }
 
   const value = {
     ...result,
@@ -553,7 +650,7 @@ function extractProducts(toolResults: Array<{ name: string; result: unknown }>) 
 function extractDelivery(toolResults: Array<{ name: string; result: unknown }>) {
   for (const tr of toolResults) {
     if (tr.name === "check_delivery") {
-      return tr.result;
+      return normalizeDeliveryResult(tr.result);
     }
   }
   return null;
@@ -562,10 +659,22 @@ function extractDelivery(toolResults: Array<{ name: string; result: unknown }>) 
 function extractOrder(toolResults: Array<{ name: string; result: unknown }>) {
   for (const tr of toolResults) {
     if (tr.name === "create_order") {
-      return tr.result;
+      return normalizeOrderResult(tr.result);
     }
   }
   return null;
+}
+
+function orderCreatedReply(order: OrderCreatedMetadata, delivery: unknown) {
+  const deliveryRecord = delivery && typeof delivery === "object" ? (delivery as Record<string, unknown>) : {};
+  const city = typeof deliveryRecord.city === "string" ? deliveryRecord.city : "the selected city";
+  const date = typeof deliveryRecord.checkedDate === "string"
+    ? formatOrderDate(deliveryRecord.checkedDate)
+    : typeof deliveryRecord.delivery_date === "string"
+      ? formatOrderDate(deliveryRecord.delivery_date)
+      : "the confirmed date";
+
+  return `Yesss! Order created!\n\nYour payment link is ready - prices are locked for 60 minutes so pay soon!\n\nOyata guarantee they're going to LOVE this. Delivery on ${date} to ${city}. You did good!`;
 }
 
 async function fallbackSearch(message: string) {
@@ -583,6 +692,100 @@ async function fallbackSearch(message: string) {
     order: null,
     label: products.length ? "SEARCH_RESULT" : "AI_RECOMMENDATION",
     model: "kapruka-fallback",
+  };
+}
+
+function parseVisionJson(text: string): VisionAnalysis {
+  const cleaned = text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned) as Partial<VisionAnalysis>;
+    const queries = Array.isArray(parsed.search_queries) ? parsed.search_queries.filter((query): query is string => typeof query === "string" && query.trim().length > 0) : [];
+    return {
+      product_type: typeof parsed.product_type === "string" ? parsed.product_type : "product",
+      features: Array.isArray(parsed.features) ? parsed.features.filter((feature): feature is string => typeof feature === "string") : [],
+      search_queries: queries.length ? queries.slice(0, 3) : ["gift", "similar product", "shopping item"],
+      occasion: typeof parsed.occasion === "string" ? parsed.occasion : undefined,
+      confidence: typeof parsed.confidence === "string" ? parsed.confidence : "medium",
+    };
+  } catch {
+    return {
+      product_type: "product",
+      features: [],
+      search_queries: ["gift", "similar product", "shopping item"],
+      confidence: "low",
+    };
+  }
+}
+
+async function analyzeImage(image: ImageInput): Promise<VisionAnalysis> {
+  const response = await ai.models.generateContent({
+    model: MODELS.vision,
+    contents: [{
+      role: "user",
+      parts: [
+        { inlineData: { mimeType: image.mimeType, data: image.base64 } },
+        {
+          text: image.userText ||
+            "What product is shown in this image? I want to find something similar on Kapruka Sri Lanka.",
+        },
+      ],
+    }],
+    config: {
+      systemInstruction: `You are analyzing a product image for a Sri Lankan shopping assistant. Look at the image and extract:
+
+1. Product type (what kind of product is this?)
+2. Key visual features (color, style, size, occasion)
+3. 3 specific Kapruka search queries that would find this product or similar ones
+4. The occasion this might be for (birthday, wedding, anniversary, etc.) if obvious
+
+Respond ONLY in this JSON format, no other text:
+{
+  "product_type": "chocolate cake",
+  "features": ["dark chocolate", "roses on top", "celebration", "medium size"],
+  "search_queries": ["dark chocolate cake with roses", "chocolate birthday cake", "luxury chocolate cake"],
+  "occasion": "birthday",
+  "confidence": "high"
+}`,
+      temperature: 0.2,
+      maxOutputTokens: 512,
+    },
+  });
+  return parseVisionJson(response.text ?? "");
+}
+
+function imageSearchReply(analysis: VisionAnalysis, products: Product[]) {
+  if (products.length === 0) {
+    return `Aiyo, I can see this looks like ${analysis.product_type}, but I couldn't find a clean Kapruka match yet. Try another angle or tell me what part you want me to match.`;
+  }
+
+  const features = analysis.features.slice(0, 3).join(", ");
+  const featureText = features ? ` ${features} vibe eka balala` : "";
+  return `I checked the image${featureText} and searched Kapruka for similar ${analysis.product_type} options. These look closest - tap one and I can check delivery or add it to cart.`;
+}
+
+async function imageSearchResponse(message: string, image: ImageInput) {
+  const analysis = await analyzeImage({ ...image, userText: message || image.userText });
+  const messageText = message.trim();
+  const queries = Array.from(new Set([
+    ...(messageText && !/^find something like this$/i.test(messageText) ? [messageText] : []),
+    ...analysis.search_queries,
+    analysis.product_type,
+  ].filter(Boolean))).slice(0, 3);
+  const results = await Promise.all(queries.map((query) =>
+    searchKaprukaProducts(query, { limit: 8, max_price: null }).catch((): SearchResult => ({ results: [] }))
+  ));
+  const products = Array.from(new Map(results.flatMap((entry) => entry.results ?? []).map((product) => [product.id, product])).values()).slice(0, 8);
+
+  return {
+    reply: imageSearchReply(analysis, products),
+    products,
+    delivery: null,
+    order: null,
+    label: products.length ? "SEARCH_RESULT" : "AI_RECOMMENDATION",
+    quickReplies: products.length ? ["Show more options", "Check delivery cost", "Add all to cart"] : ["Try another image", "Browse gifts"],
+    imageAnalysis: analysis,
+    model: MODELS.vision,
+    intent: "IMAGE_SEARCH",
   };
 }
 
@@ -764,6 +967,29 @@ person, then search Kapruka only when there is enough intent to show real
 products.`;
 }
 
+type LockedLanguage = "en" | "si" | "ta";
+
+function lockedLanguageName(language?: string) {
+  if (language === "si") return "Sinhala/Singlish";
+  if (language === "ta") return "Tamil/Tanglish";
+  return "English";
+}
+
+function promptWithLockedLanguage(basePrompt: string, language?: string) {
+  const lockedLanguage = lockedLanguageName(language);
+  return `${basePrompt}
+
+---
+
+LOCKED CONVERSATION LANGUAGE:
+
+This chat's language was decided by the user's first meaningful message.
+For this entire chat, respond in ${lockedLanguage}.
+Do not switch language because of later short replies, names, phone numbers,
+addresses, English product names, or mixed-language corrections.
+Only product names, brand names, prices, and city names may stay as written.`;
+}
+
 function sse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -816,12 +1042,14 @@ async function routedChatResponse({
   audio,
   classifierPromise,
   startedAt,
+  language,
 }: {
   message: string;
   history: Content[];
   audio?: { data: string; mimeType: string };
   classifierPromise: Promise<boolean>;
   startedAt: number;
+  language?: LockedLanguage;
 }) {
   const obviousComplex = hasComplexShoppingSignal(message ?? "");
   const directSearchReady = hasEnoughInfoToSearch(message ?? "", history);
@@ -831,9 +1059,10 @@ async function routedChatResponse({
   const research = isComplex
     ? await withTimeout(researchGiftIdeas(message, history), "", 2500)
     : "";
+  const basePrompt = isComplex ? complexPromptWithResearch(research) : KADE_TEXT_SYSTEM_PROMPT;
   const routeOptions = isComplex
-    ? { prompt: complexPromptWithResearch(research), enableGoogleSearch: false }
-    : {};
+    ? { prompt: promptWithLockedLanguage(basePrompt, language), enableGoogleSearch: false }
+    : { prompt: promptWithLockedLanguage(basePrompt, language) };
 
   const { text, toolResults, modelUsed } = await chatWithModelFallback({
     message,
@@ -842,12 +1071,12 @@ async function routedChatResponse({
     primaryModel,
     ...routeOptions,
   });
-  const reply = cleanAssistantReply(text);
   logModelRoute(routeIntent, modelUsed, startedAt);
 
   const products = extractProducts(toolResults);
   const delivery = extractDelivery(toolResults);
   const order = extractOrder(toolResults);
+  const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
   if (!isComplex && toolResults.length === 0 && isShoppingQuery(message)) {
     const fallback = await fallbackSearch(message);
@@ -889,12 +1118,14 @@ function streamChatResponse({
   audio,
   classifierPromise,
   startedAt,
+  language,
 }: {
   message: string;
   history: Content[];
   audio?: { data: string; mimeType: string };
   classifierPromise: Promise<boolean>;
   startedAt: number;
+  language?: LockedLanguage;
 }) {
   const encoder = new TextEncoder();
 
@@ -917,7 +1148,7 @@ function streamChatResponse({
 
           if (isComplex) {
             const starterPromise = withTimeout(
-              quickComplexStarter(message).then(cleanAssistantReply),
+              quickComplexStarter(message, language).then(cleanAssistantReply),
               "",
               1200
             );
@@ -927,6 +1158,7 @@ function streamChatResponse({
               audio,
               classifierPromise: Promise.resolve(true),
               startedAt,
+              language,
             });
 
             const starterReply = await starterPromise;
@@ -947,6 +1179,7 @@ function streamChatResponse({
                 audio,
                 classifierPromise: Promise.resolve(false),
                 startedAt,
+                language,
               })
             );
           }
@@ -987,16 +1220,38 @@ export async function POST(req: NextRequest) {
   let routeIntent = "SIMPLE";
 
   try {
-    const { message, history, audio, stream } = (await req.json()) as {
+    const { message, history, audio, image, stream, orderDraft, language } = (await req.json()) as {
       message: string;
       history?: Content[];
       audio?: { data: string; mimeType: string };
+      image?: ImageInput;
       stream?: boolean;
+      orderDraft?: { stage?: string };
+      language?: LockedLanguage;
     };
     messageForFallback = message || "audio message";
 
     const conversationHistory: Content[] = history ?? [];
+
+    if (image?.base64 && image.mimeType) {
+      const result = await imageSearchResponse(message ?? "", image);
+      logModelRoute("IMAGE_SEARCH", MODELS.vision, startedAt);
+      return Response.json(result);
+    }
+
     const classifierPromise = isComplexIntent(message ?? "", conversationHistory);
+
+    if (orderDraft?.stage === "collecting" || orderDraft?.stage === "confirming") {
+      return Response.json({
+        reply: "Seri, order details tika complete karamu. Mokakda fix karanna one?",
+        products: [],
+        delivery: null,
+        order: null,
+        label: "AI_RECOMMENDATION",
+        quickReplies: ["Recipient name", "Phone", "Address", "City", "Date", "Message"],
+        model: "kade-order-local-guard",
+      });
+    }
 
     if (stream) {
       return streamChatResponse({
@@ -1005,6 +1260,7 @@ export async function POST(req: NextRequest) {
         audio,
         classifierPromise,
         startedAt,
+        language,
       });
     }
 
@@ -1019,9 +1275,10 @@ export async function POST(req: NextRequest) {
     const research = isComplex
       ? await withTimeout(researchGiftIdeas(message, conversationHistory), "", 2500)
       : "";
+    const basePrompt = isComplex ? complexPromptWithResearch(research) : KADE_TEXT_SYSTEM_PROMPT;
     const routeOptions = isComplex
-      ? { prompt: complexPromptWithResearch(research), enableGoogleSearch: false }
-      : {};
+      ? { prompt: promptWithLockedLanguage(basePrompt, language), enableGoogleSearch: false }
+      : { prompt: promptWithLockedLanguage(basePrompt, language) };
 
     const { text, toolResults, modelUsed } = await chatWithModelFallback({
       message,
@@ -1030,12 +1287,12 @@ export async function POST(req: NextRequest) {
       primaryModel,
       ...routeOptions,
     });
-    const reply = cleanAssistantReply(text);
     logModelRoute(routeIntent, modelUsed, startedAt);
 
     const products = extractProducts(toolResults);
     const delivery = extractDelivery(toolResults);
     const order = extractOrder(toolResults);
+    const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
     if (!isComplex && toolResults.length === 0 && isShoppingQuery(message)) {
       const fallback = await fallbackSearch(message);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callKaprukaTool } from "@/lib/mcp";
+import { friendlyOrderError, normalizeOrderResult } from "@/lib/orderState";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,8 +14,15 @@ export async function POST(req: NextRequest) {
       currency: body.currency || "LKR",
       response_format: "json"
     });
-    return NextResponse.json(result);
+    return NextResponse.json(normalizeOrderResult(result));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Order creation failed" }, { status: 500 });
+    console.error("[KADE] order_create_failed", error);
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Order creation failed",
+        reply: friendlyOrderError(error),
+      },
+      { status: 500 }
+    );
   }
 }

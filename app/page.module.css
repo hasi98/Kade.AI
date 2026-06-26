@@ -518,32 +518,6 @@
   margin-top: 8px;
 }
 
-.bottomNav {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--border);
-  background: var(--bg-secondary);
-  transition: background var(--transition-slow);
-}
-
-.bottomNavItem {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 0;
-  font-size: 10px;
-  color: var(--text-muted);
-  transition: color var(--transition);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-weight: 500;
-}
-
-.bottomNavItem:hover {
-  color: var(--accent);
-}
-
 /* ── Center — Chat ── */
 
 .chatPane {
@@ -1151,7 +1125,7 @@
   margin: 0 24px 20px;
   padding: 6px;
   display: grid;
-  grid-template-columns: 40px 1fr 40px 44px;
+  grid-template-columns: 40px 40px auto minmax(0, 1fr) 40px 44px;
   align-items: center;
   gap: 4px;
   border: 1px solid var(--border);
@@ -1177,8 +1151,101 @@
 }
 
 .composerIconBtn:hover {
-  color: var(--text-secondary);
+  color: var(--kade-primary, var(--text-secondary));
   background: var(--bg-glass-light);
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.mobileImageBtn {
+  display: none;
+}
+
+.messageImageWrap {
+  position: relative;
+  width: fit-content;
+  max-width: 200px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.messageImageWrap img {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  max-height: 220px;
+  object-fit: cover;
+}
+
+.messageImageLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.dropZone {
+  position: absolute;
+  inset: 18px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  border: 2px dashed var(--kade-primary, var(--accent));
+  border-radius: 18px;
+  background: rgba(61, 26, 110, 0.12);
+  color: var(--kade-primary, var(--accent));
+  backdrop-filter: blur(8px);
+  animation: fadeInUp 180ms ease;
+  pointer-events: none;
+}
+
+.imageSheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.imageSheet {
+  width: 100%;
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+  border-radius: 18px 18px 0 0;
+  background: var(--kade-surface, var(--bg-secondary));
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.24);
+  animation: slideUp 250ms ease;
+}
+
+.imageSheet h3 {
+  margin: 0 0 4px;
+}
+
+.imageSheet button {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--kade-surface-secondary, var(--bg-tertiary));
+  color: var(--kade-text, var(--text-primary));
+  font-weight: 800;
+}
+
+.imageSheetCancel {
+  justify-content: center;
+  color: var(--kade-text-muted, var(--text-muted)) !important;
 }
 
 .composerIconBtn.recording {
@@ -1194,6 +1261,7 @@
 }
 
 .composerInput {
+  grid-column: 4;
   min-width: 0;
   padding: 10px 4px;
   border: none;
@@ -1201,6 +1269,43 @@
   background: transparent;
   color: var(--text-primary);
   font-size: 14px;
+}
+
+.pendingImageChip {
+  grid-column: 3;
+  height: 34px;
+  min-width: 74px;
+  padding: 3px 4px 3px 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--kade-border, var(--border));
+  border-radius: 999px;
+  background: var(--kade-surface-secondary, var(--bg-tertiary));
+  color: var(--kade-text-secondary, var(--text-secondary));
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pendingImageChip img {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.pendingImageChip button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--kade-text-muted, var(--text-muted));
+}
+
+.pendingImageChip button:hover {
+  color: var(--kade-primary, var(--accent));
+  background: var(--kade-primary-light, var(--accent-muted));
 }
 
 .composerInput::placeholder {
@@ -1303,6 +1408,13 @@
   aspect-ratio: 4/3;
   background: var(--bg-tertiary);
   overflow: hidden;
+  width: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .detailImage::after {
@@ -1325,6 +1437,28 @@
 
 .detailImage:hover img {
   transform: scale(1.03);
+}
+
+.detailImageOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(61, 26, 110, 0.4);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.detailImage:hover .detailImageOverlay,
+.detailImage:focus-visible .detailImageOverlay {
+  opacity: 1;
 }
 
 .detailBadges {
@@ -1725,36 +1859,6 @@ select.checkoutInput {
   cursor: not-allowed;
 }
 
-.deliveryQuoteCard {
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-md);
-  background: var(--accent-muted);
-}
-
-.deliveryQuoteCard > svg {
-  color: var(--accent);
-}
-
-.deliveryQuoteCard strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
-.deliveryQuoteCard pre {
-  max-height: 100px;
-  overflow: auto;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 10px;
-  white-space: pre-wrap;
-}
-
 .payBtn {
   width: 100%;
   padding: 14px;
@@ -1812,15 +1916,11 @@ select.checkoutInput {
   color: #fff;
 }
 
-.orderResultPre {
-  max-height: 150px;
-  overflow: auto;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  font-size: 11px;
-  white-space: pre-wrap;
+.orderResultNote {
+  margin: 0;
   color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .trackingSection {
@@ -1901,18 +2001,6 @@ select.checkoutInput {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.35;
-}
-
-.trackingRaw {
-  max-height: 120px;
-  overflow: auto;
-  margin: 4px 0 0;
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-muted);
-  font-size: 10px;
-  white-space: pre-wrap;
 }
 
 /* ── Delivery Result Card ── */
@@ -2336,6 +2424,16 @@ select.checkoutInput {
   transition: background var(--transition-slow);
 }
 
+.liveAudioDebug {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .liveCallActions {
   position: relative;
   z-index: 1;
@@ -2438,5 +2536,1193 @@ select.checkoutInput {
   46%,
   100% {
     opacity: 0;
+  }
+}
+
+/* Final Kapruka purple/gold redesign layer */
+.shell,
+.shell.cartCollapsed,
+.shell.detailCollapsed,
+.shell.cartCollapsed.detailCollapsed {
+  height: 100dvh;
+  width: 100vw;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 340px;
+  overflow: hidden;
+  background: var(--kade-bg);
+}
+
+.shell.detailCollapsed {
+  grid-template-columns: 240px minmax(0, 1fr) 0;
+}
+
+.shell.detailCollapsed .detailPane {
+  display: none;
+}
+
+.cartSidebar {
+  width: 240px;
+  height: 100dvh;
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--kade-sidebar-bg);
+  color: var(--kade-sidebar-text);
+  border-right: 0;
+  overflow: hidden;
+}
+
+.sidebarTop {
+  display: grid;
+  gap: 14px;
+}
+
+.sidebarBrand {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebarLogo {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(245, 197, 24, 0.14);
+  color: var(--kade-accent);
+  border: 1px solid rgba(245, 197, 24, 0.28);
+}
+
+.sidebarBrand strong {
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sidebarBrand span {
+  color: #fff;
+}
+
+.sidebarBrand em {
+  color: var(--kade-accent);
+  font-style: normal;
+}
+
+.sidebarNewChat {
+  width: 100%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(232, 222, 255, 0.55);
+  border-radius: 8px;
+  color: var(--kade-sidebar-text);
+  font-weight: 700;
+  background: transparent;
+}
+
+.sidebarNewChat:hover {
+  background: var(--kade-sidebar-hover);
+  border-color: var(--kade-accent);
+}
+
+.sidebarChats {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.sidebarSectionLabel {
+  margin: 12px 4px 4px;
+  color: var(--kade-sidebar-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sidebarPromptGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sidebarPromptGrid button {
+  min-height: 31px;
+  padding: 0 8px;
+  border: 1px solid rgba(245, 197, 24, 0.28);
+  border-radius: 8px;
+  background: rgba(245, 197, 24, 0.08);
+  color: var(--kade-sidebar-text);
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarPromptGrid button:hover {
+  border-color: var(--kade-accent);
+  color: var(--kade-accent);
+}
+
+.sidebarChatItem {
+  min-height: 38px;
+  padding: 0 6px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-radius: 8px;
+  color: var(--kade-sidebar-text);
+  text-align: left;
+  font-size: 13px;
+}
+
+.sidebarChatMain {
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  text-align: left;
+}
+
+.sidebarChatMain span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarChatItem:hover {
+  background: var(--kade-sidebar-hover);
+}
+
+.sidebarChatItemActive {
+  background: var(--kade-sidebar-active);
+  box-shadow: inset 3px 0 0 var(--kade-accent);
+}
+
+.sidebarChatActions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.sidebarChatItem:hover .sidebarChatActions,
+.sidebarChatItemActive .sidebarChatActions {
+  opacity: 1;
+}
+
+.sidebarChatActions button {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--kade-sidebar-muted);
+}
+
+.sidebarChatActions button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--kade-sidebar-text);
+}
+
+.sidebarChatMenu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.sidebarChatMenu > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--kade-sidebar-muted);
+}
+
+.sidebarChatMenu > button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--kade-sidebar-text);
+}
+
+.sidebarChatMenuPanel {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  z-index: 20;
+  width: 118px;
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(232, 222, 255, 0.18);
+  border-radius: 8px;
+  background: var(--kade-sidebar-active);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.sidebarChatMenuPanel button {
+  min-height: 30px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 6px;
+  color: var(--kade-sidebar-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sidebarChatMenuPanel button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.sidebarPinnedIcon {
+  color: var(--kade-accent);
+  fill: var(--kade-accent);
+}
+
+.sidebarEmpty {
+  padding: 8px 4px;
+  color: var(--kade-sidebar-muted);
+  font-size: 12px;
+}
+
+.sidebarUser {
+  min-height: 54px;
+  padding: 9px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebarAvatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+  font-weight: 900;
+}
+
+.sidebarUser strong,
+.sidebarUser span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarUser strong {
+  font-size: 13px;
+}
+
+.sidebarUser span {
+  color: var(--kade-sidebar-muted);
+  font-size: 11px;
+}
+
+.sidebarUser button {
+  color: var(--kade-sidebar-muted);
+}
+
+.chatPane {
+  min-width: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--kade-bg);
+}
+
+.topbar {
+  min-height: 62px;
+  padding: 0 18px;
+  background: var(--kade-surface);
+  border-bottom: 1px solid var(--kade-border);
+  box-shadow: none;
+}
+
+.chatTitleBlock {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chatTitleBlock h1 {
+  max-width: min(520px, 42vw);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kade-text);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.chatTitleBlock span {
+  display: block;
+  color: var(--kade-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mobileMenuBtn {
+  display: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--kade-border);
+  border-radius: 8px;
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.livePill {
+  border-color: var(--kade-success-light);
+  background: var(--kade-success-light);
+  color: var(--kade-success);
+}
+
+.livePill span {
+  background: var(--kade-success);
+  box-shadow: 0 0 10px rgba(29, 158, 117, 0.5);
+}
+
+.iconBtn {
+  position: relative;
+  border: 1px solid var(--kade-border);
+  border-radius: 8px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-primary);
+}
+
+.iconBtn:hover {
+  background: var(--kade-primary-light);
+  color: var(--kade-primary-hover);
+}
+
+.iconBtnActive {
+  border-color: var(--kade-accent);
+  background: var(--kade-accent-light, rgba(255, 193, 7, 0.18));
+  color: var(--kade-text);
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.14);
+}
+
+.topbarBadge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.messages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 22px clamp(18px, 4vw, 56px);
+  overflow-y: auto;
+  background: var(--kade-bg);
+}
+
+.commandDeck {
+  max-width: 760px;
+  margin: 8vh auto 28px;
+  display: grid;
+  gap: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.commandDeck::after {
+  display: none;
+}
+
+.commandHero {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.welcomeLogo {
+  width: 70px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: var(--kade-primary);
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(61, 26, 110, 0.22);
+}
+
+.commandHero h2 {
+  margin: 0;
+  color: var(--kade-text);
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.commandHero p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--kade-text-secondary);
+  font-size: 15px;
+}
+
+.giftLanes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.giftLanes button {
+  min-height: 40px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--kade-border);
+  border-radius: 999px;
+  background: var(--kade-surface);
+  color: var(--kade-text-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.giftLanes button:hover {
+  border-color: var(--kade-primary);
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.message {
+  max-width: 780px;
+}
+
+.messageAvatar {
+  background: var(--kade-primary);
+  color: #fff;
+}
+
+.messageUser .messageAvatar {
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.messageBubble {
+  border: 1px solid var(--kade-border);
+  border-left: 4px solid var(--kade-primary);
+  border-radius: 8px;
+  background: var(--kade-surface);
+  color: var(--kade-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.messageUser .messageBubble {
+  border: 0;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.messageLabel {
+  border-color: var(--kade-primary-light);
+  background: var(--kade-primary-light);
+  color: var(--kade-primary);
+}
+
+.messageLabelLink {
+  border-color: var(--kade-success-light);
+  background: var(--kade-success-light);
+  color: var(--kade-success);
+}
+
+.messageBubble {
+  position: relative;
+}
+
+.voiceBubbleIcon {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(61, 26, 110, 0.08);
+  color: var(--kade-primary, var(--accent));
+  opacity: 0.78;
+}
+
+.messageUser .voiceBubbleIcon {
+  background: rgba(255, 255, 255, 0.34);
+  color: currentColor;
+}
+
+.messageVoice .messageBubble {
+  padding-right: 42px;
+}
+
+.messageVoiceSpeaking .messageBubble {
+  animation: voiceBubblePulse 1.25s ease-in-out infinite;
+}
+
+@keyframes voiceBubblePulse {
+  0%, 100% {
+    box-shadow: var(--shadow-sm);
+  }
+  50% {
+    box-shadow: var(--shadow-sm), 0 0 0 3px rgba(212, 148, 26, 0.18);
+  }
+}
+
+.productGrid {
+  max-width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  margin-top: 14px;
+  scroll-snap-type: x proximity;
+}
+
+.productGridIntro {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 180px;
+  height: 30px;
+  white-space: nowrap;
+  border-color: var(--kade-border);
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+}
+
+.productCard {
+  flex: 0 0 206px;
+  min-height: 96px;
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  border-radius: 8px;
+  border-color: var(--kade-border);
+  background: var(--kade-surface);
+  scroll-snap-align: start;
+}
+
+.productCard:hover {
+  border-color: var(--kade-primary);
+  box-shadow: 0 0 0 3px rgba(61, 26, 110, 0.12), var(--shadow-card-hover);
+}
+
+.productCardSelected {
+  border-color: var(--kade-primary);
+  box-shadow: 0 0 0 3px rgba(61, 26, 110, 0.18), var(--shadow-card-hover);
+}
+
+.productCard::after,
+.productCardImage::after,
+.pickBadge,
+.stockBadge,
+.productCardBody p,
+.pickReason {
+  display: none;
+}
+
+.productCardImage {
+  width: 74px;
+  height: 100%;
+  min-height: 96px;
+  aspect-ratio: auto;
+}
+
+.productCardBody {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.productCardBody h4 {
+  height: auto;
+  min-height: 34px;
+  color: var(--kade-text);
+  font-weight: 700;
+}
+
+.productCardFoot strong {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kade-accent);
+  font-weight: 900;
+}
+
+.addCartBtn {
+  width: 28px;
+  height: 28px;
+  border-color: var(--kade-accent);
+  background: var(--kade-accent-light);
+  color: var(--kade-accent);
+}
+
+.addCartBtn:hover {
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.quickReplyBtn {
+  border-color: var(--kade-border);
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+}
+
+.quickReplyBtn:hover {
+  border-color: var(--kade-primary);
+  background: var(--kade-primary-light);
+  color: var(--kade-primary);
+}
+
+.composer {
+  margin: 0 clamp(14px, 4vw, 56px) 18px;
+  grid-template-columns: 40px 40px auto minmax(0, 1fr) 40px 44px;
+  border-color: var(--kade-border);
+  border-radius: 999px;
+  background: var(--kade-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.composer:focus-within {
+  border-color: var(--kade-primary);
+  box-shadow: 0 0 0 3px rgba(61, 26, 110, 0.12), var(--shadow-md);
+}
+
+.composerInput::placeholder {
+  color: var(--kade-text-muted);
+}
+
+.composerSend {
+  border-radius: 50%;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.composerSend:hover {
+  background: var(--kade-accent-hover);
+  color: var(--kade-text);
+}
+
+.detailPane {
+  width: 340px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--kade-border);
+  background: var(--kade-surface);
+}
+
+.detailPanelHeader {
+  min-height: 54px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--kade-surface);
+  border-bottom: 1px solid var(--kade-border);
+}
+
+.rightTabs {
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.deliveryCityChip {
+  max-width: 108px;
+  min-height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--kade-border);
+  border-radius: 999px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deliveryCityChip:hover {
+  border-color: var(--kade-primary);
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.rightTab {
+  position: relative;
+  min-height: 54px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--kade-text-secondary);
+  font-weight: 800;
+}
+
+.rightTab span {
+  min-width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+  font-size: 11px;
+}
+
+.rightTabActive {
+  color: var(--kade-text);
+}
+
+.rightTabActive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--kade-accent);
+}
+
+.detailEmpty,
+.cartTabContent,
+.checkoutSection {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.detailEmpty {
+  flex: 1;
+  padding: 28px;
+}
+
+.detailEmptyIcon {
+  background: var(--kade-primary-light);
+  color: var(--kade-primary);
+}
+
+.detailImage {
+  height: 200px;
+  aspect-ratio: auto;
+  flex: 0 0 auto;
+}
+
+.detailBadges {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.detailBadgeStock {
+  background: var(--kade-success);
+}
+
+.detailBadgeDelivery {
+  background: var(--kade-primary);
+}
+
+.detailContent {
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.detailPrice,
+.cartItemPrice,
+.cartTotalPrice,
+.checkoutSummary strong {
+  color: var(--kade-accent);
+}
+
+.detailAddBtn {
+  border-radius: 8px;
+  background: var(--kade-accent);
+  color: var(--kade-text);
+  box-shadow: none;
+}
+
+.detailAddBtn:hover {
+  background: var(--kade-accent-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.detailDelivery {
+  border-color: var(--kade-border);
+  background: var(--kade-surface-secondary);
+}
+
+.detailDeliveryIcon {
+  background: var(--kade-success-light);
+  color: var(--kade-success);
+}
+
+.detailDeliveryHighlight {
+  color: var(--kade-success) !important;
+}
+
+.deliveryPlaceholder {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--kade-border);
+  border-radius: 12px;
+  background: var(--kade-surface-secondary);
+}
+
+.deliveryPlaceholderTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kade-primary);
+}
+
+.deliveryPlaceholderTitle strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kade-text);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deliveryPlaceholder label {
+  display: grid;
+  gap: 5px;
+}
+
+.deliveryPlaceholder label span {
+  color: var(--kade-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.giftOptions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.giftOption {
+  min-height: 92px;
+  padding: 10px;
+  border-color: var(--kade-border);
+  background: var(--kade-surface);
+}
+
+.giftOption:hover,
+.giftOptionActive {
+  border-color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.giftOptionActive .giftOptionCheck {
+  border-color: var(--kade-accent);
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.cartTabContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.cartHeaderClean {
+  padding: 16px 16px 8px;
+}
+
+.cartHeaderClean h2 {
+  margin: 0;
+  color: var(--kade-text);
+  font-size: 22px;
+}
+
+.cartHeaderClean span {
+  color: var(--kade-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cartItems {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px;
+  overflow-y: auto;
+}
+
+.cartEmptyState {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--kade-text-secondary);
+}
+
+.cartEmptyState h3,
+.cartEmptyState p {
+  margin: 0;
+}
+
+.orderStateCard {
+  min-height: 0;
+  flex: 1;
+  padding: 22px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.orderStateCard h3,
+.orderStateCard p {
+  margin: 0;
+}
+
+.orderStateCard h3 {
+  color: var(--kade-text);
+}
+
+.orderStateCard p,
+.orderStateCard span {
+  color: var(--kade-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cartItem {
+  border-color: var(--kade-border);
+  border-radius: 8px;
+  background: var(--kade-surface-secondary);
+}
+
+.cartItemImg,
+.cartItemFallback {
+  border-radius: 8px;
+}
+
+.cartItemQty button {
+  border-color: var(--kade-border);
+  background: var(--kade-surface);
+}
+
+.cartFooter {
+  flex: 0 0 auto;
+  padding: 14px;
+  border-top: 1px solid var(--kade-border);
+  background: var(--kade-surface);
+}
+
+.checkoutBtn {
+  border-radius: 8px;
+  background: var(--kade-primary);
+  color: #fff;
+  box-shadow: none;
+}
+
+.checkoutBtn:hover {
+  background: var(--kade-primary-hover);
+}
+
+.checkoutBtn:disabled {
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-muted);
+}
+
+.saveCartBtn {
+  border-color: var(--kade-border);
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+}
+
+.checkoutInput {
+  border-color: var(--kade-border);
+  background: var(--kade-surface);
+  color: var(--kade-text);
+}
+
+.checkoutInput:focus {
+  border-color: var(--kade-primary);
+  box-shadow: 0 0 0 3px rgba(61, 26, 110, 0.12);
+}
+
+.payBtn,
+.deliveryQuoteBtn {
+  border-radius: 8px;
+  background: var(--kade-primary);
+  color: #fff;
+}
+
+@media (max-width: 1020px) {
+  .shell,
+  .shell.cartCollapsed,
+  .shell.detailCollapsed,
+  .shell.cartCollapsed.detailCollapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .cartSidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    display: flex;
+    transform: translateX(-104%);
+    transition: transform 220ms ease;
+    box-shadow: 18px 0 42px rgba(0, 0, 0, 0.24);
+  }
+
+  .sidebarOpen .cartSidebar {
+    transform: translateX(0);
+  }
+
+  .mobileMenuBtn {
+    display: grid;
+  }
+
+  .detailPane {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 35;
+    width: 100%;
+    height: min(78dvh, 720px);
+    border-left: 0;
+    border-top: 1px solid var(--kade-border);
+    border-radius: 18px 18px 0 0;
+    transform: translateY(105%);
+    transition: transform 240ms ease;
+    box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.22);
+  }
+
+  .rightPanelActive .detailPane {
+    transform: translateY(0);
+  }
+
+  .shell.detailCollapsed .detailPane {
+    display: flex;
+    transform: translateY(105%);
+  }
+
+  .chatPane {
+    height: 100dvh;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    padding: 0 10px;
+  }
+
+  .chatTitleBlock h1 {
+    max-width: 42vw;
+    font-size: 14px;
+  }
+
+  .chatTitleBlock span,
+  .livePill {
+    display: none;
+  }
+
+  .messages {
+    padding: 14px;
+  }
+
+  .message {
+    max-width: 100%;
+  }
+
+  .messageBubble {
+    max-width: calc(100vw - 62px);
+  }
+
+  .productGridIntro {
+    flex-basis: auto;
+    max-width: 156px;
+  }
+
+  .composer {
+    margin: 0 10px 10px;
+    grid-template-columns: 36px auto minmax(0, 1fr) 36px 40px;
+  }
+
+  .desktopImageBtn {
+    display: none;
+  }
+
+  .mobileImageBtn {
+    display: grid;
+  }
+
+  .composerInput {
+    grid-column: 3;
+  }
+
+  .pendingImageChip {
+    grid-column: 2;
+    min-width: 58px;
+  }
+
+  .pendingImageChip span {
+    display: none;
+  }
+
+  .giftOptions {
+    grid-template-columns: 1fr;
   }
 }

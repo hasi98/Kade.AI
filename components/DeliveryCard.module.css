@@ -1,0 +1,199 @@
+.card {
+  width: 100%;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--kade-border);
+  border-radius: 12px;
+  background: var(--kade-surface);
+  box-shadow: var(--shadow-sm);
+  animation: deliveryCardIn 200ms ease both;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kade-primary);
+}
+
+.title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kade-text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.badgeToday {
+  background: var(--kade-success);
+  color: #fff;
+  animation: todayPulse 1600ms ease-in-out infinite;
+}
+
+.badgeTomorrow {
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.badgeFuture {
+  background: var(--kade-primary-light);
+  color: var(--kade-primary);
+}
+
+.badgeUnavailable {
+  background: var(--kade-danger-light, #fee2e2);
+  color: var(--kade-danger, #dc2626);
+}
+
+.divider {
+  height: 1px;
+  background: var(--kade-border);
+}
+
+.rows {
+  display: grid;
+  gap: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.row svg {
+  margin-top: 2px;
+  color: var(--kade-primary);
+}
+
+.row span,
+.reason p {
+  display: block;
+  color: var(--kade-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.row strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--kade-text);
+  font-size: 14px;
+}
+
+.priceValue {
+  color: var(--kade-accent) !important;
+  font-size: 18px !important;
+}
+
+.freeValue {
+  color: var(--kade-success) !important;
+  font-size: 16px !important;
+}
+
+.warningValue {
+  color: var(--kade-accent) !important;
+}
+
+.warning {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--kade-accent-light);
+  color: var(--kade-accent-hover);
+}
+
+.warning p,
+.reason p {
+  margin: 0;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.reason {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--kade-text-muted);
+  font-style: italic;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+}
+
+.primaryAction,
+.secondaryAction {
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.primaryAction {
+  background: var(--kade-primary);
+  color: #fff;
+}
+
+.primaryAction:hover {
+  background: var(--kade-primary-hover);
+}
+
+.secondaryAction {
+  border: 1px solid var(--kade-primary);
+  background: transparent;
+  color: var(--kade-primary);
+}
+
+.secondaryAction:hover {
+  background: var(--kade-primary-light);
+}
+
+@keyframes deliveryCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes todayPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(29, 158, 117, 0.32);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(29, 158, 117, 0);
+  }
+}

@@ -19,6 +19,36 @@ export type Product = {
   url: string;
 };
 
+export type ProductVariant = {
+  id: string;
+  name: string;
+  sku?: string;
+  price: Price;
+  in_stock: boolean;
+  stock_level?: string;
+  attributes?: Record<string, string | number | boolean | null>;
+};
+
+export type ProductDetail = Product & {
+  description: string;
+  summary: string;
+  stock_level?: "low" | "medium" | "high" | string;
+  variants?: ProductVariant[];
+  images: string[];
+  attributes?: {
+    type?: string;
+    subtype?: string;
+    weight?: string;
+    vendor?: string;
+    [key: string]: string | undefined;
+  };
+  shipping?: {
+    ships_from?: string;
+    ships_internationally?: boolean;
+    restricted_countries?: string[];
+  };
+};
+
 export type CartItem = {
   product: Product;
   quantity: number;
@@ -38,6 +68,12 @@ export type ChatMessage = {
   id: string;
   role: "assistant" | "user";
   text: string;
+  source?: "text" | "voice" | "image";
+  image?: {
+    url: string;
+    mimeType: string;
+    searching?: boolean;
+  };
   products?: Product[];
   quickReplies?: string[];
   label?: MessageLabel;
@@ -46,16 +82,18 @@ export type ChatMessage = {
   isStreaming?: boolean;
 };
 
-export type DeliveryQuote = {
-  city?: string;
-  available?: boolean;
-  rate_lkr?: number;
-  delivery_date?: string;
-  estimated_time?: string;
-  shipping_method?: string;
-  message?: string;
-  raw?: unknown;
+export type DeliveryResult = {
+  city: string;
+  available: boolean;
+  checkedDate: string;
+  nextAvailableDate: string | null;
+  rate: number;
+  currency: string;
+  reason: string | null;
+  perishableWarning: string | null;
 };
+
+export type DeliveryQuote = DeliveryResult;
 
 export type OrderResult = {
   order_number?: string;

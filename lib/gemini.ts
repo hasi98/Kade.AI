@@ -94,11 +94,13 @@ const mcpTools: FunctionDeclaration[] = [
         delivery_address: { type: Type.STRING },
         delivery_city: { type: Type.STRING },
         delivery_date: { type: Type.STRING },
+        location_type: { type: Type.STRING },
+        delivery_instructions: { type: Type.STRING },
         sender_name: { type: Type.STRING },
         anonymous: { type: Type.BOOLEAN },
         gift_message: { type: Type.STRING },
       },
-      required: ["cart", "recipient_name", "recipient_phone", "delivery_address", "delivery_city"],
+      required: ["cart", "recipient_name", "recipient_phone", "delivery_address", "delivery_city", "delivery_date", "sender_name"],
     },
   },
 ];
@@ -285,13 +287,17 @@ export async function chatWithTools(
   return { text: "I ran into an issue processing your request. Could you try again?", toolResults };
 }
 
-export async function quickComplexStarter(message: string): Promise<string> {
+export async function quickComplexStarter(message: string, language?: "en" | "si" | "ta"): Promise<string> {
+  const lockedLanguage =
+    language === "si" ? "Sinhala/Singlish" :
+    language === "ta" ? "Tamil/Tanglish" :
+    "English";
   const response = await ai.models.generateContent({
     model: MODELS.chat,
     contents: [{ role: "user", parts: [{ text: message }] }],
     config: {
       systemInstruction:
-        "You are Kade, a warm Sri Lankan shopping friend. Write a natural quick acknowledgement in the user's language/style for a complex shopping situation. Match Sinhala, Tamil, Singlish, Tanglish, or English naturally. Be human and emotionally aware, but do not solve the request yet. Do not mention products, categories, prices, search results, tools, or internal reasoning. Do not say 'give me a second'. Keep it to 1-2 short sentences.",
+        `You are Kade, a warm Sri Lankan shopping friend. Write a natural quick acknowledgement in ${lockedLanguage}, because this chat's language was decided at the start. Do not switch language based on this latest message. Be human and emotionally aware, but do not solve the request yet. Do not mention products, categories, prices, search results, tools, or internal reasoning. Do not say 'give me a second'. Keep it to 1-2 short sentences.`,
       temperature: CHAT_TEMPERATURE,
       maxOutputTokens: 120,
     },

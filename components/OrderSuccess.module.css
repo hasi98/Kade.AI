@@ -1,0 +1,177 @@
+.wrap {
+  min-height: 0;
+  padding: 18px;
+  display: grid;
+  gap: 13px;
+  overflow-y: auto;
+}
+
+.hero {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.checkCircle {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--kade-success);
+  animation: successPop 600ms ease both;
+}
+
+.checkCircle svg {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: drawCheck 600ms 120ms ease forwards;
+}
+
+.hero h2,
+.hero p {
+  margin: 0;
+}
+
+.hero h2 {
+  color: var(--kade-text);
+  font-size: 18px;
+}
+
+.hero p {
+  color: var(--kade-text-muted);
+  font-size: 13px;
+}
+
+.timer {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 999px;
+  background: var(--kade-accent-light);
+  color: var(--kade-accent-hover);
+  font-weight: 900;
+}
+
+.timerUrgent {
+  background: var(--kade-danger-light);
+  color: var(--kade-danger);
+  animation: urgentPulse 1200ms ease-in-out infinite;
+}
+
+.payButton,
+.secondary,
+.done {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.payButton {
+  background: var(--kade-accent);
+  color: var(--kade-text);
+}
+
+.payButton:hover {
+  background: var(--kade-accent-hover);
+}
+
+.secondary {
+  border: 1px solid var(--kade-border);
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+}
+
+.secondary:hover {
+  border-color: var(--kade-primary);
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.done {
+  background: var(--kade-primary);
+  color: #fff;
+}
+
+.refRow {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--kade-border);
+  border-radius: 8px;
+  color: var(--kade-text-muted);
+  font-size: 12px;
+}
+
+.refRow button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--kade-primary);
+  font-weight: 800;
+}
+
+.nextCard {
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+}
+
+.nextCard strong {
+  color: var(--kade-text);
+}
+
+.nextCard p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.nextCard svg {
+  color: var(--kade-success);
+}
+
+.note {
+  color: var(--kade-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes successPop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes drawCheck {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes urgentPulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}

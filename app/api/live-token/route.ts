@@ -52,6 +52,7 @@ type LiveTokenContext = {
   shownProducts?: LiveContextProduct[];
   cartCount?: number;
   cartTotal?: number;
+  language?: "en" | "si" | "ta";
 };
 
 const liveTools: FunctionDeclaration[] = [
@@ -83,21 +84,112 @@ const liveTools: FunctionDeclaration[] = [
     },
   },
   {
-    name: "cart_add_item",
+    name: "kapruka_check_delivery",
     description:
-      "Add one of the currently visible Kapruka products to the cart. Call this whenever the user picks, selects, says add to cart, says 'number two', 'second one', names a visible product, or asks to buy a visible product. Do not say the cart was updated until this function returns.",
+      "Check Kapruka delivery availability and fee for a city/date without requiring anything in the cart. Call this whenever the user asks about delivery fee, delivery cost, delivery availability, or whether Kapruka delivers to a city. Do not search products just because the user mentions what they might deliver.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        product_id: {
+        city: {
+          type: Type.STRING,
+          description: "Kapruka delivery city, e.g. Colombo 03, Kandy, Balangoda.",
+        },
+        deliveryDate: {
+          type: Type.STRING,
+          description: "Optional delivery date in YYYY-MM-DD format. Use today/tomorrow if user asked.",
+        },
+        productId: {
+          type: Type.STRING,
+          description: "Optional Kapruka product ID if a specific visible product is involved.",
+        },
+        itemType: {
+          type: Type.STRING,
+          description: "Optional plain item type such as cake, flowers, chocolates. Do not search for this; delivery can be checked without it.",
+        },
+      },
+      required: ["city"],
+    },
+  },
+  {
+    name: "fill_order_field",
+    description:
+      "Call this immediately after the user provides any single piece of order information. Do not wait to collect all fields first. Fire this tool after each answer, one at a time, as soon as you have the value.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        field: {
+          type: Type.STRING,
+          enum: ["recipientName", "recipientPhone", "streetAddress", "city", "deliveryDate", "senderName", "anonymous", "giftMessage"],
+          description: "The specific order field being filled.",
+        },
+        value: {
+          type: Type.STRING,
+          description:
+            "The value to fill. Normalize phone to local format, deliveryDate to YYYY-MM-DD, anonymous to true or false string, and giftMessage to empty string if skipped.",
+        },
+        displayValue: {
+          type: Type.STRING,
+          description: "Human-friendly version for display in the form.",
+        },
+      },
+      required: ["field", "value", "displayValue"],
+    },
+  },
+  {
+    name: "correct_order_field",
+    description:
+      "Call this when the user wants to change a field that was already filled. Use the same field names as fill_order_field.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        field: {
+          type: Type.STRING,
+          enum: ["recipientName", "recipientPhone", "streetAddress", "city", "deliveryDate", "senderName", "anonymous", "giftMessage"],
+          description: "The specific order field being corrected.",
+        },
+        value: {
+          type: Type.STRING,
+          description: "The corrected value.",
+        },
+        displayValue: {
+          type: Type.STRING,
+          description: "Human-friendly corrected value for display in the form.",
+        },
+      },
+      required: ["field", "value", "displayValue"],
+    },
+  },
+  {
+    name: "confirm_order_ready",
+    description:
+      "Call this only after all required fields have been filled via fill_order_field. Required fields: recipientName, recipientPhone, streetAddress, city, deliveryDate, senderName. Optional: anonymous, giftMessage. This shows the Place Order button to the user.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        allFieldsSummary: {
+          type: Type.STRING,
+          description: "Brief one-line summary of the order for confirmation.",
+        },
+      },
+      required: ["allFieldsSummary"],
+    },
+  },
+  {
+    name: "update_cart_from_voice",
+    description:
+      "Add one of the currently visible Kapruka products to the cart during voice conversation. Call this whenever the user picks, selects, says add to cart, says 'number two', 'second one', names a visible product, or asks to buy a visible product. Do not say the cart was updated until this function returns.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        productId: {
           type: Type.STRING,
           description: "Product ID from the latest kapruka_search_products result, if known.",
         },
-        product_index: {
+        productIndex: {
           type: Type.NUMBER,
           description: "1-based visible product number, e.g. 2 for 'second one'.",
         },
-        product_name: {
+        productName: {
           type: Type.STRING,
           description: "Visible product name or partial name, if the user referred by name.",
         },
@@ -109,40 +201,37 @@ const liveTools: FunctionDeclaration[] = [
     },
   },
   {
-    name: "checkout_start",
+    name: "request_city_input",
     description:
-      "Start collecting checkout details for the current cart. Call when the user says checkout, buy, order, make the order, place order, create payment link, or asks to send the selected items.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {},
-    },
-  },
-  {
-    name: "checkout_provide_detail",
-    description:
-      "Send the user's latest checkout answer to the Kade order form. Use this only when the user is actually answering the current checkout question. Do not call this for clarification questions like 'what is recipient name?', 'what do you mean?', 'recipient kiyanne mokakda?', or if the user sounds confused. In those cases, answer naturally, explain the field, and repeat the current question. Pass the raw user answer exactly.",
+      "Call this if the user is struggling to say their city clearly after 2 attempts, or if the accent/audio makes the city hard to recognize. This opens a text city input popup on screen.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        answer: {
+        reason: {
           type: Type.STRING,
-          description: "The user's raw answer, e.g. full name, phone number, address, date, no/skip, or message text.",
+          description: "Friendly reason explaining why the user should type the city.",
         },
-        field: {
+        partialAddress: {
           type: Type.STRING,
-          description: "Optional target field: recipientName, recipientPhone, deliveryAddress, deliveryCity, locationType, deliveryDate, senderName, anonymous, giftMessage, icingText.",
+          description: "Street part of the address already collected.",
         },
       },
-      required: ["answer"],
+      required: ["reason"],
     },
   },
   {
-    name: "checkout_place_order",
+    name: "confirm_and_place_order",
     description:
-      "Create the Kapruka guest checkout order and payment link after the user explicitly confirms the order summary. Do not invent a payment link; call this tool.",
+      "Call when the user verbally confirms the order details are correct and wants to proceed with placing the order.",
     parameters: {
       type: Type.OBJECT,
-      properties: {},
+      properties: {
+        confirmed: {
+          type: Type.BOOLEAN,
+          description: "True when the user confirmed the order.",
+        },
+      },
+      required: ["confirmed"],
     },
   },
 ];
@@ -161,6 +250,7 @@ function voiceContextPrompt(context?: LiveTokenContext) {
 
   const cartCount = Number(context?.cartCount ?? 0);
   const cartTotal = Number(context?.cartTotal ?? 0);
+  const language = context?.language === "si" ? "Sinhala/Singlish" : context?.language === "ta" ? "Tamil/Tanglish" : "English";
 
   return `${KADE_LIVE_SYSTEM_PROMPT}
 
@@ -169,6 +259,14 @@ function voiceContextPrompt(context?: LiveTokenContext) {
 VOICE MODE SPECIFIC RULES:
 
 You are in voice mode. The user is speaking to you and can also see the chat UI, product cards, and cart.
+
+LOCKED CHAT LANGUAGE:
+${language}
+
+You MUST keep every spoken response in this locked language for the whole voice session. Do not switch language because later checkout answers contain Sinhala/Tamil/Singlish words.
+If locked language is English, ask checkout questions in English with light Sri Lankan warmth, not Sinhala/Singlish.
+If locked language is Sinhala/Singlish, use Sinhala/Singlish.
+If locked language is Tamil/Tanglish, use Tamil/Tanglish.
 
 TRANSCRIPT:
 Every response you give appears as text in the chat UI at the same time. Keep responses concise for voice, but complete enough to read naturally.
@@ -190,21 +288,112 @@ ${history}
 SHOPPING FLOW IN VOICE:
 - Never disconnect or pause while searching, checking delivery, or cart operations happen in the UI.
 - If the user asks to show/search/find/browse products, call kapruka_search_products. Do not just say you found items.
+- If the user asks for delivery fee, delivery cost, delivery availability, or "do you deliver to [city]", call kapruka_check_delivery. Do not ask them to add something to cart. Product ID is optional.
+- If the user asks delivery fee and later says an item type like "cakes", do NOT search cakes repeatedly. Use kapruka_check_delivery with the city/date already known, and itemType if useful.
 - If products are already visible and the user asks for another/different/more options, call kapruka_search_products again. Never say you can only see the previous products.
 - For elliptical follow-ups like "another type of cakes", infer the category from the follow-up and search a useful fresh query such as "cake", "chocolate cake", "fruit cake", or the user's spoken modifier.
 - After kapruka_search_products returns products, the React UI has rendered those product cards. Then briefly mention the best 2-3 by number, name, and price.
+- If kapruka_search_products returns count=0 or rendered_in_ui=false, do not say products are visible. Retry once with a broader query like "cake", "chocolate", "roses", "gift hamper", or ask one short clarifying question.
 - You cannot render product cards yourself. The React UI renders cards only after kapruka_search_products returns or after a Kapruka search context update.
 - Ask one thing at a time for delivery details.
 - If the user selects a cake, ask if it should be added to cart, then suggest flowers only if it fits.
 - If the user selects flowers, ask if it should be added to cart, then ask about a personal note.
-- If the user selects or asks to add a visible product, call cart_add_item. Never only say you added it.
-- If the user wants checkout/order/payment link, call checkout_start.
-- During checkout, when the user truly answers name, phone, address, city, date, sender, anonymous, message, or icing text, call checkout_provide_detail with their raw answer.
-- During checkout, if the user asks what a field means, asks for help, sounds confused, corrects you, or asks a question, DO NOT call checkout_provide_detail. Explain naturally in the user's language, then ask the same current detail again.
-- When the user confirms the final order, call checkout_place_order. Never invent or describe a payment link before the tool returns.
-- Checkout tools return say_next when the UI has moved to the next step. You must say that next question aloud. Never stay silent just because the UI already shows the question.
+- If the user selects or asks to add a visible product, call update_cart_from_voice. Never only say you added it.
+- If the user wants checkout/order/payment link, collect checkout details in natural voice and fill each field immediately with fill_order_field.
+- During checkout, if the user asks what a field means, asks for help, sounds confused, corrects you, or asks a question, answer naturally in the user's language. Do not treat that question as a field value.
+- During checkout, NEVER call kapruka_search_products for answers to checkout questions. Phrases like "no need to put my name", "it's a surprise", "keep anonymous", "yes they are correct", phone numbers, addresses, city names, dates, and gift messages are checkout answers, not product searches.
+- After any fill_order_field, correct_order_field, kapruka_check_delivery, or confirm_order_ready call, inspect the tool response. If say_next is present, speak that say_next meaning immediately. If ok=false, do not continue to the next checkout question until the user fixes it.
+- After confirm_order_ready and asking the user to confirm, if they say yes/seri/correct/order/okay/hari/ow in any language, immediately call confirm_and_place_order.
 - For apology contexts, prioritize a sincere personal note and a tasteful combo.
 - After any add-to-cart intent, ask whether to continue shopping or checkout.
+
+VOICE CHECKOUT - REAL-TIME FIELD FILLING:
+
+When the user wants to checkout or order, collect and fill fields ONE AT A TIME. Fire fill_order_field immediately after EACH answer.
+
+CRITICAL RULE: Do NOT collect multiple answers and submit at the end. Fill each field the moment you have it. The user sees each field appear on screen as they speak.
+
+Collection order:
+1. Recipient name
+Ask in the locked language. English example: "What's the recipient's name?" Singlish example: "Recipient name eka?"
+User answers -> immediately call fill_order_field:
+field: "recipientName"
+value: the name as given
+displayValue: properly capitalized name
+Then ask the next question without waiting.
+
+2. Phone number
+Ask in the locked language. English example: "What's their phone number?" Singlish example: "Phone number eka?"
+User answers -> immediately call fill_order_field:
+field: "recipientPhone"
+value: normalized local number, e.g. 0771687791
+displayValue: formatted number, e.g. 077 168 7791
+Then ask the next question.
+
+3. Street address and city as separate fields
+Ask in the locked language. English example: "What's the street address first?" Singlish example: "Address eka kiyanna - street eka first"
+User gives street -> immediately call fill_order_field:
+field: "streetAddress"
+value: street only
+displayValue: street only
+If the user gives a full address containing both street and city, call fill_order_field twice: first streetAddress with the street/area, then city with the city.
+Then ask in the locked language. English example: "Which delivery city should I use? If it's Colombo, tell me Colombo 01, Colombo 02, and so on." Singlish example: "City eka? Colombo nam Colombo 01, Colombo 02 wage number ekath kiyanna."
+User gives city -> immediately call fill_order_field:
+field: "city"
+value: city name
+displayValue: city name
+If user gives only a city when you asked for street, do not fill streetAddress. Say: "City eka hari. Full address eka mokakda - house number, road/lane, area eka?"
+If user says only "Colombo", do not fill city yet. Ask for the exact Colombo zone such as Colombo 01, Colombo 02, Colombo 03, etc.
+If fill_order_field returns a city error, tell the user there is a problem with the delivery city and ask them to say it again with an example.
+If after 2 tries city still unclear, call request_city_input immediately.
+
+4. Delivery date
+Ask in the locked language. English example: "When should it be delivered? Is tomorrow okay?" Singlish example: "Kawadada deliver karanna? Tomorrow okay da?"
+User answers -> immediately call fill_order_field:
+field: "deliveryDate"
+value: YYYY-MM-DD
+displayValue: "Tomorrow, 26 June" style
+
+5. Sender name
+Ask in the locked language. English example: "What's your name for the gift card?" Singlish example: "Oya name eka mokakda? Gift card eke danne."
+User answers -> immediately call fill_order_field:
+field: "senderName"
+value: sender name
+displayValue: sender name
+
+6. Anonymous option, only if this feels like a gift
+Ask in the locked language. English example: "Should I show your name, or keep it anonymous?" Singlish example: "Name eka show karamu da, hari anonymous da?"
+User answers -> immediately call fill_order_field:
+field: "anonymous"
+value: "true" or "false"
+displayValue: "Anonymous" or the sender name
+If the user says "no need to put my name", "it's a surprise", "anonymous", "hide my name", "mage nama epa", or similar, fill anonymous=true. Do not search products.
+
+7. Gift message, optional
+Ask in the locked language. English example: "Any gift message? You can say skip if not." Singlish example: "Kisi message ekak add karamu da? Skip kiyanna one na thiyenam"
+If user gives message -> immediately call fill_order_field:
+field: "giftMessage"
+value: message
+displayValue: message
+If user says skip/no/ne/epa -> immediately call fill_order_field:
+field: "giftMessage"
+value: ""
+displayValue: "None"
+
+8. All fields done
+Call confirm_order_ready immediately.
+Then say: "Api ready! Screen eke details check karanna - correct da?"
+Say this in the locked language. English example: "All set. Please check the details on the right - are they correct?"
+
+CORRECTIONS DURING COLLECTION:
+If user says "no wait", "wrong", "change that", "aney no", or similar, ask what to correct. When the user gives the new value, immediately call correct_order_field, then continue from where you were.
+Do not re-ask fields already filled unless user specifically asks to change them.
+
+If order creation fails, announce it naturally in the user's language:
+English: "Aiyo, something went wrong with the order - want me to try again?"
+Singlish: "Aiyo, order eka hadaganna bari una ne - again try karamu da?"
+If the tool response includes say_next or error, speak that exact meaning instead of saying a generic failure.
+Then wait for the user's response.
 
 The UI will keep sending context updates during the same voice session. Use those updates immediately without re-asking.`;
 }

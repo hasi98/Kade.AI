@@ -31,6 +31,20 @@ export interface OrderDraft {
   expiresAt?: string;
   errorMessage?: string;
   editingField?: string;
+  displayValues?: {
+    recipientName?: string;
+    recipientPhone?: string;
+    streetAddress?: string;
+    city?: string;
+    deliveryDate?: string;
+    senderName?: string;
+    anonymous?: string;
+    giftMessage?: string;
+  };
+  lastFilledField?: string;
+  lastFilledAt?: number;
+  lastCorrectedField?: string;
+  lastCorrectedAt?: number;
 }
 
 export interface OrderSummary {
@@ -113,14 +127,8 @@ export function getMissingFields(draft: OrderDraft): string[] {
   if (!draft.recipientPhone?.trim()) missing.push("recipientPhone");
   if (!draft.deliveryAddress?.trim()) missing.push("deliveryAddress");
   if (!draft.deliveryCity?.trim()) missing.push("deliveryCity");
-  if (!draft.locationType) missing.push("locationType");
   if (!draft.deliveryDate?.trim()) missing.push("deliveryDate");
-  if (!draft.senderName?.trim()) missing.push("senderName");
-  if (draft.anonymous === undefined) missing.push("anonymous");
   if (draft.giftMessage === undefined) missing.push("giftMessage");
-  if (hasCakeItem(draft) && draft.items.some((item) => /^cake/i.test(item.productId) && item.icingText === undefined)) {
-    missing.push("icingText");
-  }
   return missing;
 }
 

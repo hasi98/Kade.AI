@@ -40,8 +40,9 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { GoogleGenAI, Modality, type FunctionCall } from "@google/genai";
+import { CityInputPopup } from "@/components/CityInputPopup";
 import { DeliveryCard } from "@/components/DeliveryCard";
-import { OrderConfirmation } from "@/components/OrderConfirmation";
+import { LiveOrderForm } from "@/components/LiveOrderForm";
 import { OrderSuccess } from "@/components/OrderSuccess";
 import { ProductModal, prefetchProductDetail } from "@/components/ProductModal";
 import { deliveryDisplayDate, formatDeliveryDate, formatDeliveryResponse, isDeliveryResult, normalizeDeliveryResult } from "@/lib/delivery";
@@ -123,14 +124,54 @@ type VoiceSearchArgs = {
 
 type VoiceCartAddArgs = {
   product_id?: string | null;
+  productId?: string | null;
   product_index?: number | string | null;
+  productIndex?: number | string | null;
   product_name?: string | null;
+  productName?: string | null;
   quantity?: number | string | null;
 };
 
 type VoiceCheckoutArgs = {
   answer?: string | null;
   field?: string | null;
+};
+
+type VoiceOrderFieldName =
+  | "recipientName"
+  | "recipientPhone"
+  | "streetAddress"
+  | "city"
+  | "deliveryDate"
+  | "senderName"
+  | "anonymous"
+  | "giftMessage";
+
+type VoiceOrderFieldArgs = {
+  field?: VoiceOrderFieldName | string | null;
+  value?: string | null;
+  displayValue?: string | null;
+};
+
+type VoiceOrderReadyArgs = {
+  allFieldsSummary?: string | null;
+};
+
+type VoiceDeliveryCheckArgs = {
+  city?: string | null;
+  deliveryDate?: string | null;
+  delivery_date?: string | null;
+  productId?: string | null;
+  product_id?: string | null;
+  productIndex?: number | string | null;
+  product_index?: number | string | null;
+  productName?: string | null;
+  product_name?: string | null;
+  itemType?: string | null;
+};
+
+type VoiceConfirmOrderArgs = {
+  confirmed?: boolean | string | null;
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -465,6 +506,22 @@ function findDeliveryCityInText(text: string, options: DeliveryCity[]) {
   return null;
 }
 
+function normalizeDeliveryCityCandidate(text: string, options: DeliveryCity[]) {
+  const normalized = normalizeCityText(text);
+  const colomboMatch = normalized.match(/^colombo\s+0?([1-9]|1[0-5])$/);
+  if (colomboMatch) {
+    const cityName = `Colombo ${colomboMatch[1].padStart(2, "0")}`;
+    const matchingOption = options.find((option) => normalizeCityText(option.name) === normalizeCityText(cityName));
+    return matchingOption?.name ?? cityName;
+  }
+
+  const exact = options.find((option) => {
+    const names = [option.name, ...(option.aliases ?? [])];
+    return names.some((name) => normalizeCityText(name) === normalized);
+  });
+  return exact?.name ?? findDeliveryCityInText(text, options);
+}
+
 function isLikelyContactNumber(text: string) {
   const digits = text.replace(/\D/g, "");
   return /^94\d{9}$/.test(digits) || /^0\d{9}$/.test(digits);
@@ -712,6 +769,17 @@ function sortChatSessions(sessions: ChatSession[]) {
   });
 }
 
+function orderProgressCount(draft: OrderDraft | null) {
+  if (!draft) return 0;
+  let count = 0;
+  if (draft.recipientName?.trim()) count += 1;
+  if (draft.recipientPhone?.trim()) count += 1;
+  if (draft.deliveryAddress?.trim() && draft.deliveryCity?.trim()) count += 1;
+  if (draft.deliveryDate?.trim()) count += 1;
+  if (draft.giftMessage !== undefined) count += 1;
+  return count;
+}
+
 function readCookie(name: string) {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -763,7 +831,7 @@ function HomeExperience() {
   const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [detailOpen, setDetailOpen] = useState(true);
-  const [rightTab, setRightTab] = useState<"product" | "cart">("product");
+  const [rightTab, setRightTab] = useState<"product" | "cart" | "order">("product");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [giftWrap, setGiftWrap] = useState(false);
   const [personalNote, setPersonalNote] = useState(false);
@@ -783,6 +851,7 @@ function HomeExperience() {
   const [deliveryQuote, setDeliveryQuote] = useState<DeliveryResult | null>(null);
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null);
   const [orderResult, setOrderResult] = useState<OrderCreatedMetadata | null>(null);
+  const [voiceFormFillKey, setVoiceFormFillKey] = useState(0);
   const [conversationLanguage, setConversationLanguage] = useState<ConversationLanguage>("en");
   const conversationLanguageRef = useRef<ConversationLanguage>("en");
   const conversationLanguageLockedRef = useRef(false);
@@ -810,6 +879,7 @@ function HomeExperience() {
   const livePlaybackContextRef = useRef<AudioContext | null>(null);
   const latestVoiceProductsRef = useRef<Product[]>([]);
   const orderPlacementInFlightRef = useRef(false);
+  const lastOrderErrorRef = useRef("");
 
   const openLiveCall = useCallback(() => {
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -1129,7 +1199,7 @@ function HomeExperience() {
       if (savedCity) setCity(savedCity);
       if (savedDraft && ["collecting", "confirming"].includes(savedDraft.stage)) {
         setOrderDraft(savedDraft);
-        setRightTab("cart");
+        setRightTab("order");
         setDetailOpen(true);
         setMessages((prev) => [
           ...prev,
@@ -1655,13 +1725,13 @@ function HomeExperience() {
     ];
     const uniqueProducts = Array.from(new Map(products.map((product) => [product.id, product])).values());
 
-    const productId = String(args.product_id ?? "").trim();
+    const productId = String(args.product_id ?? args.productId ?? "").trim();
     if (productId) {
       const byId = uniqueProducts.find((product) => product.id === productId);
       if (byId) return byId;
     }
 
-    const index = Number(args.product_index);
+    const index = Number(args.product_index ?? args.productIndex);
     if (Number.isInteger(index) && index > 0) {
       const shown = voiceSession.shownProducts[index - 1];
       if (shown) {
@@ -1671,7 +1741,7 @@ function HomeExperience() {
       if (latestVoiceProductsRef.current[index - 1]) return latestVoiceProductsRef.current[index - 1];
     }
 
-    const productName = String(args.product_name ?? "").trim().toLowerCase();
+    const productName = String(args.product_name ?? args.productName ?? "").trim().toLowerCase();
     if (productName) {
       const nameWords = productName.split(/\s+/).filter((word) => word.length > 2);
       return uniqueProducts.find((product) => {
@@ -1708,6 +1778,103 @@ function HomeExperience() {
       cart_count_after_request: cart.reduce((sum, item) => sum + item.quantity, 0) + quantity,
     };
   }, [cart, findVoiceProduct]);
+
+  const handleVoiceDeliveryCheck = useCallback(async (args: VoiceDeliveryCheckArgs) => {
+    const requestedCity = cleanOrderValue(String(args.city ?? ""));
+    if (!requestedCity) {
+      return {
+        ok: false,
+        error: "Missing delivery city.",
+        say_next: currentOrderLanguage() === "en"
+          ? "Which city should I check delivery for? For Colombo, please include the number, like Colombo 03."
+          : "Delivery check karanna city eka mokakda? Colombo nam Colombo 03 wage number ekath kiyanna.",
+      };
+    }
+
+    const normalizedCity = normalizeDeliveryCityCandidate(requestedCity, deliveryCityOptions);
+    if (/^colombo$/i.test(requestedCity)) {
+      return {
+        ok: false,
+        error: "Colombo needs a zone number.",
+        say_next: currentOrderLanguage() === "en"
+          ? "Colombo needs the exact delivery zone. Is it Colombo 01, Colombo 02, Colombo 03, or another Colombo number?"
+          : "Colombo nam exact delivery zone eka one. Colombo 01, Colombo 02, Colombo 03 wage mokakda?",
+      };
+    }
+    if (!normalizedCity && deliveryCityOptions.length > 5) {
+      return {
+        ok: false,
+        error: `Unknown delivery city: ${requestedCity}`,
+        say_next: currentOrderLanguage() === "en"
+          ? `I can't find "${requestedCity}" in Kapruka delivery cities. Can you say the nearest main city?`
+          : `"${requestedCity}" Kapruka delivery city list eke hoyaganna bari una. Langa main city eka kiyanna puluwanda?`,
+      };
+    }
+
+    const hasProductReference = Boolean(
+      args.product_id ?? args.productId ?? args.product_index ?? args.productIndex ?? args.product_name ?? args.productName
+    );
+    const product = hasProductReference
+      ? findVoiceProduct({
+          product_id: args.product_id,
+          productId: args.productId,
+          product_index: args.product_index,
+          productIndex: args.productIndex,
+          product_name: args.product_name,
+          productName: args.productName,
+        })
+      : null;
+    const checkCity = normalizedCity ?? requestedCity;
+    const checkDate = sriLankaDateFromText(String(args.deliveryDate ?? args.delivery_date ?? deliveryDate));
+
+    try {
+      const res = await fetch("/api/delivery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: checkCity,
+          delivery_date: checkDate,
+          product_id: args.product_id ?? args.productId ?? product?.id ?? null,
+        }),
+      });
+      const data = (await res.json()) as { reply?: string; delivery?: unknown; error?: string };
+      if (!res.ok) throw new Error(data.error || "Delivery check failed");
+      const delivery = data.delivery
+        ? isDeliveryResult(data.delivery)
+          ? data.delivery
+          : normalizeDeliveryResult(data.delivery, checkCity)
+        : null;
+      if (!delivery) throw new Error("Delivery check did not return a quote.");
+
+      setDeliveryQuote(delivery);
+      setCity(delivery.city);
+      setDeliveryDate(delivery.checkedDate || checkDate);
+
+      return {
+        ok: true,
+        city: delivery.city,
+        requested_date: checkDate,
+        available: delivery.available,
+        checked_date: delivery.checkedDate,
+        next_available_date: delivery.nextAvailableDate,
+        rate: delivery.rate,
+        fee_text: delivery.rate > 0 ? `Rs. ${new Intl.NumberFormat("en-LK").format(delivery.rate)}` : "Free",
+        reply: data.reply || formatDeliveryResponse(delivery),
+        itemType: args.itemType ?? null,
+        product: product ? { id: product.id, name: product.name } : null,
+        say_next: data.reply || formatDeliveryResponse(delivery),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Delivery check failed.";
+      return {
+        ok: false,
+        error: message,
+        say_next: currentOrderLanguage() === "en"
+          ? `${message} Want to try another city or date?`
+          : `${message} Wena city ekak hari date ekak hari try karamu da?`,
+      };
+    }
+  }, [deliveryCityOptions, deliveryDate, findVoiceProduct]);
 
   function orderToolState(draft: OrderDraft | null = orderDraft) {
     if (!draft) {
@@ -1846,6 +2013,369 @@ function HomeExperience() {
       : { ok: false, action, error: "Order creation failed. The UI has the latest error." };
   }, [cart, checkout, city, deliveryDate, deliveryQuote, orderDraft, orderResult]);
 
+  function normalizeVoiceBoolean(value: string | boolean | null | undefined) {
+    if (typeof value === "boolean") return value;
+    const text = String(value ?? "").trim().toLowerCase();
+    if (!text) return false;
+    if (/\b(true|yes|yep|yeah|anonymous|hide|ow|hari|seri)\b/.test(text)) return true;
+    if (/\b(false|no|nope|show|name|ne|epa)\b/.test(text)) return false;
+    return false;
+  }
+
+  function looksLikeCityOnlyAddress(address: string, cityName: string) {
+    const normalizedAddress = address.trim().toLowerCase().replace(/[.,\s]+/g, " ");
+    const normalizedCity = cityName.trim().toLowerCase().replace(/[.,\s]+/g, " ");
+    if (!normalizedAddress || !normalizedCity) return false;
+    if (normalizedAddress === normalizedCity) return true;
+    const addressCity = findDeliveryCityInText(address, deliveryCityOptions);
+    const hasStreetSignal = /\b(road|rd|street|st|lane|ln|mawatha|place|no\.?|number|house|flat|apartment|building|gedara|para|watta|junction|floor)\b/i.test(address);
+    const wordCount = normalizedAddress.split(/\s+/).filter(Boolean).length;
+    return Boolean(addressCity) && !hasStreetSignal && wordCount <= 3;
+  }
+
+  function voiceFieldToDraftKey(field: string): keyof OrderDraft | null {
+    if (field === "streetAddress") return "deliveryAddress";
+    if (field === "city") return "deliveryCity";
+    if (
+      field === "recipientName" ||
+      field === "recipientPhone" ||
+      field === "deliveryDate" ||
+      field === "senderName" ||
+      field === "anonymous" ||
+      field === "giftMessage"
+    ) {
+      return field;
+    }
+    return null;
+  }
+
+  function normalizeVoiceOrderField(field: string, value: string) {
+    const cleaned = cleanOrderValue(value);
+    if (field === "recipientPhone") return cleaned.replace(/[^\d+]/g, "");
+    if (field === "deliveryDate") return sriLankaDateFromText(cleaned);
+    if (field === "anonymous") return normalizeVoiceBoolean(cleaned) ? "true" : "false";
+    if (field === "giftMessage") return isSkipAnswer(cleaned) ? "" : cleaned.slice(0, 300);
+    return cleaned;
+  }
+
+  function applyVoiceOrderField(args: VoiceOrderFieldArgs, corrected: boolean) {
+    const items = checkoutItemsForDraft();
+    if (!items.length) {
+      return {
+        ok: false,
+        error: "Cart is empty. Ask the user to add an item first.",
+        say_next: "Aiyo, cart eka empty ne. Product ekak add karala order hadamu.",
+      };
+    }
+
+    const field = String(args.field ?? "").trim();
+    const draftKey = voiceFieldToDraftKey(field);
+    if (!draftKey) {
+      return {
+        ok: false,
+        error: `Unsupported order field: ${field || "missing"}`,
+        say_next: "Aiyo, field eka match une na. Eka ayeth ahanna.",
+      };
+    }
+
+    let value = normalizeVoiceOrderField(field, String(args.value ?? ""));
+    let displayValue = String(args.displayValue ?? value).trim() || (field === "giftMessage" && !value ? "None" : value);
+    if (!value && field !== "giftMessage") {
+      return {
+        ok: false,
+        error: "Missing field value.",
+        field,
+        say_next: "Aiyo, answer eka clear na. Eka ayeth kiyanna.",
+      };
+    }
+
+    if (field === "recipientPhone" && !isLikelyContactNumber(value)) {
+      return {
+        ok: false,
+        error: "Phone number is not valid.",
+        say_next: "Phone number eka hariyata ahaganna one. 0771234567 wage number ekak kiyanna.",
+      };
+    }
+
+    if (field === "streetAddress") {
+      const detectedCity = findDeliveryCityInText(value, deliveryCityOptions);
+      const existingCity = orderDraft?.deliveryCity ?? city;
+      if (looksLikeCityOnlyAddress(value, detectedCity || existingCity)) {
+        return {
+          ok: false,
+          error: "Street address is missing. User only gave the city.",
+          field,
+          say_next: "City eka hari. Full address eka mokakda - house number, road/lane, area eka?",
+        };
+      }
+    }
+
+    if (field === "city" && /^colombo$/i.test(value.trim())) {
+      const english = currentOrderLanguage() === "en";
+      return {
+        ok: false,
+        error: "Colombo needs a zone number.",
+        field,
+        say_next: english
+          ? "Colombo needs the delivery zone. Is it Colombo 01, Colombo 02, Colombo 03, or another Colombo number?"
+          : "Colombo nam delivery zone number eka one. Colombo 01, Colombo 02, Colombo 03 wage mokakda?",
+      };
+    }
+
+    if (field === "city") {
+      const normalizedCity = normalizeDeliveryCityCandidate(value, deliveryCityOptions);
+      const canValidateCity = deliveryCityOptions.length > 5;
+      if (!normalizedCity && canValidateCity) {
+        const english = currentOrderLanguage() === "en";
+        return {
+          ok: false,
+          error: `Unknown delivery city: ${value}`,
+          field,
+          say_next: english
+            ? `I can't find "${value}" in Kapruka delivery cities. Can you say the nearest main city? For example: Colombo 03, Kandy, Galle, or Balangoda.`
+            : `"${value}" Kapruka delivery city list eke hoyaganna bari una. Langa main city eka kiyanna puluwanda? Colombo 03, Kandy, Galle, Balangoda wage.`,
+        };
+      }
+      if (normalizedCity) {
+        value = normalizedCity;
+        displayValue = normalizedCity;
+      }
+    }
+
+    const baseDraft: OrderDraft = orderDraft && ["collecting", "confirming", "error"].includes(orderDraft.stage)
+      ? orderDraft
+      : draftFromCurrentCart("collecting");
+    const now = Date.now();
+    const nextDraft: OrderDraft = {
+      ...baseDraft,
+      items,
+      stage: "collecting",
+      locationType: baseDraft.locationType ?? "house",
+      displayValues: {
+        ...(baseDraft.displayValues ?? {}),
+        [field]: displayValue,
+      },
+      editingField: undefined,
+      lastFilledField: corrected ? baseDraft.lastFilledField : field,
+      lastFilledAt: corrected ? baseDraft.lastFilledAt : now,
+      lastCorrectedField: corrected ? field : baseDraft.lastCorrectedField,
+      lastCorrectedAt: corrected ? now : baseDraft.lastCorrectedAt,
+    };
+
+    if (draftKey === "recipientName") nextDraft.recipientName = value;
+    if (draftKey === "recipientPhone") nextDraft.recipientPhone = value;
+    if (draftKey === "deliveryAddress") nextDraft.deliveryAddress = value;
+    if (draftKey === "deliveryCity") nextDraft.deliveryCity = value;
+    if (draftKey === "deliveryDate") nextDraft.deliveryDate = value;
+    if (draftKey === "senderName") nextDraft.senderName = value;
+    if (draftKey === "giftMessage") nextDraft.giftMessage = value;
+    if (draftKey === "anonymous") nextDraft.anonymous = normalizeVoiceBoolean(value);
+
+    if (field === "city") setCity(value);
+    if (field === "deliveryDate") setDeliveryDate(value);
+    setCheckout((prev) => ({
+      ...prev,
+      recipientName: nextDraft.recipientName ?? prev.recipientName,
+      recipientPhone: nextDraft.recipientPhone ?? prev.recipientPhone,
+      address: nextDraft.deliveryAddress ?? prev.address,
+      senderName: nextDraft.senderName ?? prev.senderName,
+      anonymous: nextDraft.anonymous ?? prev.anonymous,
+      giftMessage: nextDraft.giftMessage ?? prev.giftMessage,
+    }));
+    setOrderResult(null);
+    setOrderDraft(nextDraft);
+    saveOrderDraft(nextDraft);
+    setRightTab("order");
+    setDetailOpen(true);
+
+    const followUp = field === "city" && !nextDraft.deliveryAddress?.trim()
+      ? currentOrderLanguage() === "en"
+        ? "Got the city. I still need the street address first - house number, road or lane, and area."
+        : "City eka hari. Thawa street address eka one - house number, road/lane, area eka kiyanna."
+      : undefined;
+
+    return {
+      ok: true,
+      result: corrected ? "corrected" : "filled",
+      field,
+      value,
+      displayValue,
+      say_next: followUp,
+      missing: getMissingFields(nextDraft),
+      draft: {
+        recipientName: nextDraft.recipientName,
+        recipientPhone: nextDraft.recipientPhone,
+        streetAddress: nextDraft.deliveryAddress,
+        city: nextDraft.deliveryCity,
+        deliveryDate: nextDraft.deliveryDate,
+        senderName: nextDraft.senderName,
+        anonymous: nextDraft.anonymous,
+        giftMessage: nextDraft.giftMessage,
+        itemCount: items.length,
+      },
+    };
+  }
+
+  function handleVoiceOrderFieldFill(args: VoiceOrderFieldArgs) {
+    return applyVoiceOrderField(args, false);
+  }
+
+  function handleVoiceOrderFieldCorrection(args: VoiceOrderFieldArgs) {
+    return applyVoiceOrderField(args, true);
+  }
+
+  function handleVoiceOrderReady(args: VoiceOrderReadyArgs = {}) {
+    const draft = orderDraft;
+    if (!draft) {
+      return {
+        ok: false,
+        error: "No order form is active.",
+        say_next: "Aiyo, order form eka start wela na. Details tika collect karamu.",
+      };
+    }
+
+    const requiredMissing = [
+      !draft.recipientName?.trim() ? "recipientName" : null,
+      !draft.recipientPhone?.trim() ? "recipientPhone" : null,
+      !draft.deliveryAddress?.trim() ? "streetAddress" : null,
+      !draft.deliveryCity?.trim() ? "city" : null,
+      !draft.deliveryDate?.trim() ? "deliveryDate" : null,
+      !draft.senderName?.trim() ? "senderName" : null,
+    ].filter(Boolean);
+
+    if (requiredMissing.length) {
+      return {
+        ok: false,
+        missing: requiredMissing,
+        say_next: "Thawa podi details tikak missing. Eka fill karala confirm karamu.",
+      };
+    }
+
+    if (/^colombo$/i.test(draft.deliveryCity?.trim() ?? "")) {
+      return {
+        ok: false,
+        error: "Colombo needs a zone number.",
+        missing: ["city"],
+        say_next: currentOrderLanguage() === "en"
+          ? "There is a problem with the delivery city. Colombo needs a number, like Colombo 01, Colombo 02, or Colombo 03. Which one should I use?"
+          : "Delivery city eke podi problem ekak thiyenawa. Colombo nam Colombo 01, Colombo 02, Colombo 03 wage number ekak one. Mokakda use karanne?",
+      };
+    }
+
+    const normalizedCity = normalizeDeliveryCityCandidate(draft.deliveryCity ?? "", deliveryCityOptions);
+    if (!normalizedCity && deliveryCityOptions.length > 5) {
+      return {
+        ok: false,
+        error: `Unknown delivery city: ${draft.deliveryCity}`,
+        missing: ["city"],
+        say_next: currentOrderLanguage() === "en"
+          ? `There is a problem with the delivery city "${draft.deliveryCity}". Can you say the nearest Kapruka delivery city again? For example: Colombo 03, Kandy, Galle, or Balangoda.`
+          : `Delivery city "${draft.deliveryCity}" eke problem ekak thiyenawa. Langa Kapruka delivery city eka ayeth kiyanna puluwanda? Colombo 03, Kandy, Galle, Balangoda wage.`,
+      };
+    }
+
+    const confirmingDraft: OrderDraft = {
+      ...draft,
+      deliveryCity: normalizedCity ?? draft.deliveryCity,
+      giftMessage: draft.giftMessage ?? "",
+      anonymous: draft.anonymous ?? false,
+      stage: "confirming",
+      grandTotal: orderGrandTotal(draft),
+      lastFilledField: "ready",
+      lastFilledAt: Date.now(),
+    };
+    setOrderDraft(confirmingDraft);
+    saveOrderDraft(confirmingDraft);
+    setRightTab("order");
+    setDetailOpen(true);
+    setVoiceFormFillKey((value) => value + 1);
+
+    return {
+      ok: true,
+      result: "ready",
+      summary: args.allFieldsSummary ?? "",
+      say_next: currentOrderLanguage() === "en"
+        ? "All set. Please check the details on the right - are they correct?"
+        : "Api ready! Screen eke details check karanna - correct da?",
+    };
+  }
+
+  function voiceOrderFailureMessage(errorMessage: string) {
+    const language = currentOrderLanguage();
+    const needsColomboZone = /colombo/i.test(orderDraft?.deliveryCity ?? "") && /city|deliver|delivery|available/i.test(errorMessage);
+    if (language === "en") {
+      if (needsColomboZone) {
+        return "Kapruka needs the exact Colombo delivery zone. Can you change the city to Colombo 01, Colombo 02, Colombo 03, or the correct Colombo number?";
+      }
+      return `${errorMessage} Want me to fix the delivery city or date and try again?`;
+    }
+    if (needsColomboZone) {
+      return "Kapruka ekata exact Colombo delivery zone eka one. City eka Colombo 01, Colombo 02, Colombo 03 wage correct number ekata change karamu da?";
+    }
+    return `${errorMessage} City hari date eka change karala ayeth try karamu da?`;
+  }
+
+  async function handleVoiceConfirmAndPlace(args: VoiceConfirmOrderArgs) {
+    const confirmedValue = args.confirmed;
+    const confirmed = typeof confirmedValue === "boolean"
+      ? confirmedValue
+      : /\b(true|yes|yep|yeah|place|order|correct|seri|hari|ow|ok|okay)\b/i.test(String(confirmedValue ?? ""));
+
+    if (!confirmed) {
+      return {
+        ok: false,
+        cancelled: true,
+        say_next: currentOrderLanguage() === "en"
+          ? "Okay, I won't place it yet. Tell me what you want to change."
+          : "Hari, place karanne na. Change karanna ona detail eka kiyanna.",
+      };
+    }
+
+    const draft = orderDraft;
+    if (!draft) {
+      return {
+        ok: false,
+        error: "No order form is ready.",
+        say_next: currentOrderLanguage() === "en"
+          ? "Aiyo, the order form is not ready yet. Let's collect the details first."
+          : "Aiyo, order form eka ready na. Details tika collect karamu.",
+      };
+    }
+
+    const missing = getMissingFields(draft);
+    if (missing.length) {
+      return {
+        ok: false,
+        missing,
+        say_next: currentOrderLanguage() === "en"
+          ? "A few details are still missing. Let's fill those before placing the order."
+          : "Podi details tikak missing ne. Eka fill karala order hadamu.",
+      };
+    }
+
+    lastOrderErrorRef.current = "";
+    const created = await placeOrderFromDraft({ ...draft, stage: "confirming" });
+    if (!created) {
+      const errorMessage = lastOrderErrorRef.current || "Order creation failed.";
+      return {
+        ok: false,
+        error: errorMessage,
+        say_next: voiceOrderFailureMessage(errorMessage),
+      };
+    }
+
+    return {
+      ok: true,
+      checkout_url: created.checkoutUrl,
+      order_ref: created.orderRef,
+      grand_total: created.summary.grandTotal,
+      expires_at: created.expiresAt,
+      say_next: currentOrderLanguage() === "en"
+        ? "Yesss, the order is created. The payment link is ready, and prices are locked for 60 minutes."
+        : "Yesss, order eka haduwa! Payment link eka ready. Prices 60 minutes lock wela.",
+    };
+  }
+
   async function handleImageFile(file: File) {
     const validation = validateImageFile(file);
     if (!validation.valid) {
@@ -1944,7 +2474,7 @@ function HomeExperience() {
 
   function addToCart(product: Product) {
     setCartOpen(true);
-    setRightTab("cart");
+    setRightTab("order");
     setDetailOpen(true);
     setCart((prev) => {
       const found = prev.find((item) => item.product.id === product.id);
@@ -2073,8 +2603,9 @@ function HomeExperience() {
   function askOrderEditField(draft: OrderDraft) {
     const editingDraft = { ...draft, stage: "collecting" as const, editingField: "select" };
     const copy = orderCopy(currentOrderLanguage());
+    setVoiceFormFillKey(0);
     setOrderDraft(editingDraft);
-    setRightTab("cart");
+    setRightTab("order");
     setDetailOpen(true);
     addAssistantMessage(
       copy.editAsk,
@@ -2082,10 +2613,25 @@ function HomeExperience() {
     );
   }
 
+  function editOrderField(field: keyof OrderDraft) {
+    if (!orderDraft) return;
+    const nextDraft = {
+      ...orderDraft,
+      stage: "collecting" as const,
+      editingField: field === "deliveryAddress" ? "deliveryAddress" : String(field),
+    };
+    setVoiceFormFillKey(0);
+    setOrderDraft(nextDraft);
+    setRightTab("order");
+    setDetailOpen(true);
+    addAssistantMessage(orderQuestion(String(field), currentOrderLanguage()));
+  }
+
   function continueOrderDraft(nextDraft: OrderDraft) {
     const missing = getMissingFields(nextDraft);
     const language = currentOrderLanguage();
     const copy = orderCopy(language);
+    setVoiceFormFillKey(0);
     if (missing.includes("items")) {
       addAssistantMessage(copy.emptyCart);
       return;
@@ -2094,7 +2640,7 @@ function HomeExperience() {
     if (missing.length > 0) {
       const collectingDraft = { ...nextDraft, stage: "collecting" as const };
       setOrderDraft(collectingDraft);
-      setRightTab("cart");
+      setRightTab("order");
       setDetailOpen(true);
       addAssistantMessage(orderQuestion(missing[0], language));
       return;
@@ -2106,7 +2652,7 @@ function HomeExperience() {
       grandTotal: orderGrandTotal(nextDraft),
     };
     setOrderDraft(confirmingDraft);
-    setRightTab("cart");
+    setRightTab("order");
     setDetailOpen(true);
     addAssistantMessage(
       orderConfirmationText(confirmingDraft, language),
@@ -2266,10 +2812,11 @@ function HomeExperience() {
       return null;
     }
     orderPlacementInFlightRef.current = true;
+    lastOrderErrorRef.current = "";
     let placingDraft = { ...draft, stage: "placing" as const };
     setOrderDraft(placingDraft);
     setBusyAction("order");
-    setRightTab("cart");
+    setRightTab("order");
     setDetailOpen(true);
 
     try {
@@ -2296,7 +2843,7 @@ function HomeExperience() {
             instructions: placingDraft.deliveryInstructions || null,
           },
           sender: {
-            name: placingDraft.senderName,
+            name: placingDraft.senderName || "Kade AI shopper",
             anonymous: placingDraft.anonymous ?? false,
           },
           gift_message: placingDraft.giftMessage || null,
@@ -2309,6 +2856,7 @@ function HomeExperience() {
         throw new Error(data.reply || data.error || "Order creation failed");
       }
 
+      lastOrderErrorRef.current = "";
       setOrderResult(data);
       setOrder(data as unknown as Record<string, unknown>);
       setOrderDraft({
@@ -2329,6 +2877,7 @@ function HomeExperience() {
       return data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Aiyo, something went wrong - want to try again?";
+      lastOrderErrorRef.current = message;
       setOrderDraft({ ...placingDraft, stage: "error", errorMessage: message });
       addAssistantMessage(message, ["Try again", "Edit details"]);
       return null;
@@ -2914,7 +3463,12 @@ function HomeExperience() {
             }}
             onShoppingRequest={handleVoiceShoppingIntent}
             onCartAddRequest={handleVoiceCartAdd}
+            onDeliveryCheckRequest={handleVoiceDeliveryCheck}
             onCheckoutAction={handleVoiceCheckoutAction}
+            onOrderFieldFill={handleVoiceOrderFieldFill}
+            onOrderFieldCorrection={handleVoiceOrderFieldCorrection}
+            onOrderReady={handleVoiceOrderReady}
+            onConfirmOrder={handleVoiceConfirmAndPlace}
             onUserTranscript={addVoiceUserMessage}
             onAssistantTranscript={upsertVoiceAssistantMessage}
             onStatusChange={(status) => {
@@ -2930,6 +3484,7 @@ function HomeExperience() {
             shownProducts={voiceSession.shownProducts}
             cartItems={cart}
             conversationSummary={messages.filter((message) => message.id !== "welcome").slice(-10).map((message) => `${message.role}: ${message.text}`).join("\n")}
+            lockedLanguage={conversationLanguage}
           />
         ) : (
           <form className={styles.composer} onSubmit={onSubmit}>
@@ -3037,7 +3592,7 @@ function HomeExperience() {
       </section>
 
       {/* ═══ RIGHT: Product Detail ═══ */}
-      <aside className={styles.detailPane}>
+      <aside className={clsx(styles.detailPane, voiceFormFillKey > 0 && rightTab === "order" && styles.detailPaneVoiceFocus)}>
         <div className={styles.detailPanelHeader}>
           <div className={styles.rightTabs}>
             <button
@@ -3058,6 +3613,16 @@ function HomeExperience() {
               Cart
               <span>{cart.length}</span>
             </button>
+            {orderDraft && (
+              <button
+                type="button"
+                className={clsx(styles.rightTab, rightTab === "order" && styles.rightTabActive)}
+                onClick={() => setRightTab("order")}
+              >
+                Order
+                <span>{getMissingFields(orderDraft).length === 0 ? <Check size={11} /> : `${orderProgressCount(orderDraft)}/5`}</span>
+              </button>
+            )}
           </div>
           <button
             className={styles.deliveryCityChip}
@@ -3113,14 +3678,7 @@ function HomeExperience() {
               <p>Click a product chip to see details here.</p>
             </div>
           )
-        ) : orderDraft?.stage === "confirming" || orderDraft?.stage === "placing" ? (
-          <OrderConfirmation
-            draft={orderDraft}
-            placing={orderDraft.stage === "placing" || busyAction === "order"}
-            onPlaceOrder={() => placeOrderFromDraft(orderDraft)}
-            onEditDetails={() => askOrderEditField(orderDraft)}
-          />
-        ) : orderDraft?.stage === "complete" && orderResult ? (
+        ) : rightTab === "order" && orderDraft?.stage === "complete" && orderResult ? (
           <OrderSuccess
             order={orderResult}
             onTrackOrder={() => addAssistantMessage("After paying, send me the Kapruka order number and I will track it for you.")}
@@ -3128,35 +3686,21 @@ function HomeExperience() {
               setOrderDraft(null);
               setOrderResult(null);
               clearOrderDraft();
+              setRightTab("product");
             }}
           />
-        ) : orderDraft?.stage === "error" ? (
-          <div className={styles.orderStateCard}>
-            <div className={styles.detailEmptyIcon}>
-              <X size={24} />
-            </div>
-            <h3>Aiyo, something went wrong</h3>
-            <p>{orderDraft.errorMessage || "Want to try again?"}</p>
-            <button className={styles.checkoutBtn} type="button" onClick={() => placeOrderFromDraft({ ...orderDraft, stage: "confirming" })}>
-              Try again
-            </button>
-            <button className={styles.saveCartBtn} type="button" onClick={() => setOrderDraft({ ...orderDraft, stage: "collecting" })}>
-              Edit details
-            </button>
-          </div>
-        ) : orderDraft?.stage === "collecting" ? (
-          <div className={styles.orderStateCard}>
-            <div className={styles.detailEmptyIcon}>
-              <MessageCircle size={24} />
-            </div>
-            <h3>{orderCopy(conversationLanguage).collectingTitle}</h3>
-            <p>
-              {orderDraft.editingField === "select"
-                ? orderCopy(conversationLanguage).editSelect
-                : orderQuestion((orderDraft.editingField && orderDraft.editingField !== "select") ? orderDraft.editingField : getMissingFields(orderDraft)[0], conversationLanguage)}
-            </p>
-            <span>{orderCopy(conversationLanguage).collectingHelp}</span>
-          </div>
+        ) : rightTab === "order" && orderDraft ? (
+          <LiveOrderForm
+            draft={orderDraft}
+            onFieldEdit={editOrderField}
+            onPlaceOrder={() => placeOrderFromDraft(orderDraft.stage === "error" ? { ...orderDraft, stage: "confirming" } : orderDraft)}
+            onCancel={() => {
+              clearOrderDraft();
+              setOrderDraft(null);
+              setOrderResult(null);
+              setRightTab(cart.length ? "cart" : "product");
+            }}
+          />
         ) : showCheckout ? (
           <DeliveryDetailsPanel
             cart={cart}
@@ -3727,7 +4271,12 @@ function LiveCallOverlay({
   onClose,
   onShoppingRequest,
   onCartAddRequest,
+  onDeliveryCheckRequest,
   onCheckoutAction,
+  onOrderFieldFill,
+  onOrderFieldCorrection,
+  onOrderReady,
+  onConfirmOrder,
   onUserTranscript,
   onAssistantTranscript,
   onStatusChange,
@@ -3736,11 +4285,17 @@ function LiveCallOverlay({
   shownProducts,
   cartItems,
   conversationSummary,
+  lockedLanguage,
 }: {
   onClose: () => void;
   onShoppingRequest: (text: string, args?: VoiceSearchArgs) => Promise<Product[]> | Product[] | void;
   onCartAddRequest: (args: VoiceCartAddArgs) => Record<string, unknown>;
+  onDeliveryCheckRequest: (args: VoiceDeliveryCheckArgs) => Promise<Record<string, unknown>> | Record<string, unknown>;
   onCheckoutAction: (action: "start" | "detail" | "place", args?: VoiceCheckoutArgs) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  onOrderFieldFill: (args: VoiceOrderFieldArgs) => Record<string, unknown>;
+  onOrderFieldCorrection: (args: VoiceOrderFieldArgs) => Record<string, unknown>;
+  onOrderReady: (args?: VoiceOrderReadyArgs) => Record<string, unknown>;
+  onConfirmOrder: (args: VoiceConfirmOrderArgs) => Promise<Record<string, unknown>> | Record<string, unknown>;
   onUserTranscript: (text: string) => void;
   onAssistantTranscript: (text: string, final?: boolean) => void;
   onStatusChange: (status: "connecting" | "listening" | "speaking") => void;
@@ -3749,12 +4304,19 @@ function LiveCallOverlay({
   shownProducts: ShownVoiceProduct[];
   cartItems: CartItem[];
   conversationSummary: string;
+  lockedLanguage: ConversationLanguage;
 }) {
   const [status, setStatus] = useState<"connecting" | "listening" | "speaking">("connecting");
   const [muted, setMuted] = useState(false);
   const [voiceName, setVoiceName] = useState<(typeof LIVE_VOICES)[number]>("Aoede");
   const [transcript, setTranscript] = useState("Connecting to Kade AI...");
   const [audioDebug, setAudioDebug] = useState("audio waiting");
+  const [checkoutStatus, setCheckoutStatus] = useState("");
+  const [cityPopup, setCityPopup] = useState<{ visible: boolean; reason: string; partialAddress: string }>({
+    visible: false,
+    reason: "",
+    partialAddress: "",
+  });
   const sessionRef = useRef<Awaited<ReturnType<GoogleGenAI["live"]["connect"]>> | null>(null);
   const mutedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -3777,7 +4339,12 @@ function LiveCallOverlay({
   const onCloseRef = useRef(onClose);
   const onShoppingRequestRef = useRef(onShoppingRequest);
   const onCartAddRequestRef = useRef(onCartAddRequest);
+  const onDeliveryCheckRequestRef = useRef(onDeliveryCheckRequest);
   const onCheckoutActionRef = useRef(onCheckoutAction);
+  const onOrderFieldFillRef = useRef(onOrderFieldFill);
+  const onOrderFieldCorrectionRef = useRef(onOrderFieldCorrection);
+  const onOrderReadyRef = useRef(onOrderReady);
+  const onConfirmOrderRef = useRef(onConfirmOrder);
   const onUserTranscriptRef = useRef(onUserTranscript);
   const onAssistantTranscriptRef = useRef(onAssistantTranscript);
   const onContextSenderRef = useRef(onContextSender);
@@ -3787,6 +4354,9 @@ function LiveCallOverlay({
   const shownProductsRef = useRef(shownProducts);
   const cartItemsRef = useRef(cartItems);
   const conversationSummaryRef = useRef(conversationSummary);
+  const lockedLanguageRef = useRef(lockedLanguage);
+  const pendingCityToolRef = useRef<{ id?: string; name?: string; partialAddress?: string } | null>(null);
+  const checkoutActiveRef = useRef(false);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -3810,8 +4380,28 @@ function LiveCallOverlay({
   }, [onCartAddRequest]);
 
   useEffect(() => {
+    onDeliveryCheckRequestRef.current = onDeliveryCheckRequest;
+  }, [onDeliveryCheckRequest]);
+
+  useEffect(() => {
     onCheckoutActionRef.current = onCheckoutAction;
   }, [onCheckoutAction]);
+
+  useEffect(() => {
+    onOrderFieldFillRef.current = onOrderFieldFill;
+  }, [onOrderFieldFill]);
+
+  useEffect(() => {
+    onOrderFieldCorrectionRef.current = onOrderFieldCorrection;
+  }, [onOrderFieldCorrection]);
+
+  useEffect(() => {
+    onOrderReadyRef.current = onOrderReady;
+  }, [onOrderReady]);
+
+  useEffect(() => {
+    onConfirmOrderRef.current = onConfirmOrder;
+  }, [onConfirmOrder]);
 
   useEffect(() => {
     onUserTranscriptRef.current = onUserTranscript;
@@ -3836,6 +4426,10 @@ function LiveCallOverlay({
   useEffect(() => {
     conversationSummaryRef.current = conversationSummary;
   }, [conversationSummary]);
+
+  useEffect(() => {
+    lockedLanguageRef.current = lockedLanguage;
+  }, [lockedLanguage]);
 
   const clearDirectSearchFallback = useCallback(() => {
     if (directSearchFallbackTimerRef.current) {
@@ -3892,6 +4486,28 @@ function LiveCallOverlay({
     onUserTranscriptRef.current(normalizedText);
 
     const lower = normalizedText.toLowerCase();
+    if (isCheckoutIntent(normalizedText) || /\b(payment link|pay link|place order|make the order|order this|checkout)\b/i.test(normalizedText)) {
+      checkoutActiveRef.current = true;
+      setCheckoutStatus("Collecting order details...");
+    } else if (checkoutActiveRef.current && !/[?？]$/.test(normalizedText)) {
+      setCheckoutStatus("Collecting order details...");
+    }
+
+    if (checkoutActiveRef.current) {
+      clearDirectSearchFallback();
+      clearProductActionFallback();
+      return;
+    }
+
+    const looksLikeDeliveryQuoteIntent =
+      /\b(delivery|deliver|shipping|ship)\b/.test(lower) &&
+      /\b(fee|fees|cost|charge|charges|price|available|availability|how much|quote)\b/.test(lower);
+    if (looksLikeDeliveryQuoteIntent) {
+      clearDirectSearchFallback();
+      clearProductActionFallback();
+      return;
+    }
+
     const looksLikeProductReference =
       shownProductsRef.current.length > 0 &&
       (/\b(number|no\.?|one|two|three|four|five|first|second|third|cheap|cheapest|best|hoda|laabu|eka|deka|thuna)\b/.test(lower) ||
@@ -3946,7 +4562,7 @@ function LiveCallOverlay({
     voiceBriefRef.current = [];
     setTranscript("Searching Kapruka...");
     onShoppingRequestRef.current(searchText);
-  }, [scheduleDirectSearchFallback, scheduleProductActionFallback]);
+  }, [clearDirectSearchFallback, clearProductActionFallback, scheduleDirectSearchFallback, scheduleProductActionFallback]);
 
   const sendToolResponse = useCallback((functionCall: FunctionCall, response: Record<string, unknown>) => {
     const session = sessionRef.current;
@@ -3956,6 +4572,20 @@ function LiveCallOverlay({
         {
           id: functionCall.id,
           name: functionCall.name,
+          response,
+        },
+      ],
+    });
+  }, []);
+
+  const sendToolResponseById = useCallback((id: string | undefined, name: string | undefined, response: Record<string, unknown>) => {
+    const session = sessionRef.current;
+    if (!session || !name) return;
+    session.sendToolResponse({
+      functionResponses: [
+        {
+          id,
+          name,
           response,
         },
       ],
@@ -3983,7 +4613,7 @@ function LiveCallOverlay({
     const name = functionCall.name ?? "";
     const rawArgs = (functionCall.args ?? {}) as Record<string, unknown>;
 
-    if (name === "cart_add_item") {
+    if (name === "update_cart_from_voice" || name === "cart_add_item") {
       try {
         clearDirectSearchFallback();
         clearProductActionFallback();
@@ -3993,6 +4623,118 @@ function LiveCallOverlay({
         sendToolResponse(functionCall, {
           error: error instanceof Error ? error.message : "Could not add item to cart.",
         });
+      }
+      return;
+    }
+
+    if (name === "kapruka_check_delivery" || name === "check_delivery") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        setCheckoutStatus("");
+        setTranscript("Checking delivery...");
+        const result = await onDeliveryCheckRequestRef.current(rawArgs as VoiceDeliveryCheckArgs);
+        sendToolResponse(functionCall, { output: result });
+        if (result.say_next) nudgeLiveToSpeak(result.say_next);
+      } catch (error) {
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Could not check delivery.",
+        });
+        nudgeLiveToSpeak("Aiyo, delivery check eka fail una. City eka ayeth kiyanna puluwanda?");
+      }
+      return;
+    }
+
+    if (name === "fill_order_field") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        checkoutActiveRef.current = true;
+        setCheckoutStatus("Collecting order details...");
+        const result = onOrderFieldFillRef.current(rawArgs as VoiceOrderFieldArgs);
+        sendToolResponse(functionCall, { output: result });
+        if (result.say_next) nudgeLiveToSpeak(result.say_next);
+      } catch (error) {
+        setCheckoutStatus("Checkout needs attention");
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Could not fill order field.",
+        });
+        nudgeLiveToSpeak("Aiyo, detail eka fill karanna podi issue ekak awa. Eka ayeth kiyanna.");
+      }
+      return;
+    }
+
+    if (name === "correct_order_field") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        checkoutActiveRef.current = true;
+        setCheckoutStatus("Correcting detail...");
+        const result = onOrderFieldCorrectionRef.current(rawArgs as VoiceOrderFieldArgs);
+        sendToolResponse(functionCall, { output: result });
+        if (result.say_next) nudgeLiveToSpeak(result.say_next);
+        window.setTimeout(() => setCheckoutStatus("Collecting order details..."), 900);
+      } catch (error) {
+        setCheckoutStatus("Checkout needs attention");
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Could not correct order field.",
+        });
+      }
+      return;
+    }
+
+    if (name === "confirm_order_ready") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        checkoutActiveRef.current = true;
+        setCheckoutStatus("Review on the right ->");
+        const result = onOrderReadyRef.current(rawArgs as VoiceOrderReadyArgs);
+        sendToolResponse(functionCall, { output: result });
+        if (result.say_next) nudgeLiveToSpeak(result.say_next);
+      } catch (error) {
+        setCheckoutStatus("Checkout needs attention");
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Could not mark order ready.",
+        });
+      }
+      return;
+    }
+
+    if (name === "request_city_input") {
+      clearDirectSearchFallback();
+      clearProductActionFallback();
+      checkoutActiveRef.current = true;
+      const reason = String(rawArgs.reason ?? "I could not hear the city clearly. Type it here and I will continue.");
+      const partialAddress = String(rawArgs.partialAddress ?? "");
+      pendingCityToolRef.current = {
+        id: functionCall.id,
+        name: functionCall.name,
+        partialAddress,
+      };
+      setCheckoutStatus("Waiting for city...");
+      setCityPopup({ visible: true, reason, partialAddress });
+      return;
+    }
+
+    if (name === "confirm_and_place_order") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        checkoutActiveRef.current = true;
+        setCheckoutStatus("Placing order...");
+        setTranscript("Placing order...");
+        const result = await onConfirmOrderRef.current(rawArgs as VoiceConfirmOrderArgs);
+        sendToolResponse(functionCall, { output: result });
+        nudgeLiveToSpeak(result.say_next);
+        setCheckoutStatus(result.ok ? "Payment link ready" : "Order needs attention");
+        if (result.ok) checkoutActiveRef.current = false;
+      } catch (error) {
+        setCheckoutStatus("Order needs attention");
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Could not place order.",
+        });
+        nudgeLiveToSpeak("Aiyo, order eka hadaganna bari una ne - again try karamu da?");
       }
       return;
     }
@@ -4048,6 +4790,14 @@ function LiveCallOverlay({
       return;
     }
 
+    if (checkoutActiveRef.current) {
+      sendToolResponse(functionCall, {
+        error: "Checkout is active. Do not search products for checkout answers. Continue collecting the current checkout detail or confirm/place the order.",
+      });
+      nudgeLiveToSpeak("Checkout details walata answer eka ganna. Product search karanna one na.");
+      return;
+    }
+
     const q = String(args.q ?? args.query ?? "").trim();
     if (!q) {
       sendToolResponse(functionCall, {
@@ -4079,6 +4829,9 @@ function LiveCallOverlay({
           rendered_in_ui: products.length > 0,
           count: products.length,
           products: compactProducts,
+          instruction: products.length > 0
+            ? "Product cards are visible in the UI. Mention the best options by number, name, and price."
+            : "No product cards were rendered. Do not tell the user they can see products. Retry once with a broader query or ask one short clarifying question.",
         },
       });
     } catch (error) {
@@ -4168,6 +4921,7 @@ function LiveCallOverlay({
               shownProducts: shownProductsRef.current,
               cartCount: cartItemsRef.current.length,
               cartTotal: cartItemsRef.current.reduce((sum, item) => sum + (item.product.price?.amount ?? 0) * item.quantity, 0),
+              language: lockedLanguageRef.current,
             },
           }),
         });
@@ -4472,6 +5226,39 @@ function LiveCallOverlay({
     onCloseRef.current();
   };
 
+  const submitVoiceCity = (typedCity: string) => {
+    const pendingTool = pendingCityToolRef.current;
+    if (!pendingTool) {
+      setCityPopup({ visible: false, reason: "", partialAddress: "" });
+      return;
+    }
+
+    const selectedCity = typedCity.trim();
+    if (!selectedCity) return;
+    const fullAddress = [pendingTool.partialAddress, selectedCity].filter(Boolean).join(", ");
+    sendToolResponseById(pendingTool.id, pendingTool.name, {
+      selectedCity,
+      fullAddress,
+    });
+    pendingCityToolRef.current = null;
+    setCityPopup({ visible: false, reason: "", partialAddress: "" });
+    setCheckoutStatus("Collecting order details...");
+    setTranscript(`City: ${selectedCity}`);
+  };
+
+  const cancelVoiceCity = () => {
+    const pendingTool = pendingCityToolRef.current;
+    if (pendingTool) {
+      sendToolResponseById(pendingTool.id, pendingTool.name, {
+        cancelled: true,
+        message: "User closed the city popup. Ask for the city again naturally.",
+      });
+    }
+    pendingCityToolRef.current = null;
+    setCityPopup({ visible: false, reason: "", partialAddress: "" });
+    setCheckoutStatus("");
+  };
+
   return (
     <div className={styles.liveCallOverlay}>
       <div className={styles.liveCallPanel}>
@@ -4501,6 +5288,11 @@ function LiveCallOverlay({
             />
             {status === "connecting" ? "Connecting..." : status === "speaking" ? "Speaking..." : "Listening..."}
           </div>
+          {checkoutStatus && (
+            <div className={styles.liveCheckoutStatus}>
+              {checkoutStatus}
+            </div>
+          )}
           <select
             className={styles.liveVoiceSelect}
             value={voiceName}
@@ -4554,6 +5346,12 @@ function LiveCallOverlay({
           </button>
         </div>
       </div>
+      <CityInputPopup
+        visible={cityPopup.visible}
+        reason={cityPopup.reason}
+        onSubmit={submitVoiceCity}
+        onCancel={cancelVoiceCity}
+      />
     </div>
   );
 }

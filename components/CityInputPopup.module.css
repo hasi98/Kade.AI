@@ -1,0 +1,142 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 8, 26, 0.54);
+  backdrop-filter: blur(10px);
+}
+
+.card {
+  position: relative;
+  width: min(100%, 340px);
+  padding: 24px 20px 18px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  animation: cityPopupIn 250ms ease both;
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.card h2,
+.card p {
+  margin: 0;
+  text-align: center;
+}
+
+.card h2 {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.card p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.inputWrap {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.inputWrap input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font-size: 14px;
+  font-weight: 800;
+  outline: none;
+}
+
+.inputWrap input:focus {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px rgba(212, 148, 26, 0.14);
+}
+
+.suggestions {
+  max-height: 138px;
+  overflow-y: auto;
+  display: grid;
+  gap: 5px;
+}
+
+.suggestions button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.suggestions button:hover {
+  color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.submit {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: #2d1a02;
+  background: var(--accent);
+  font-size: 14px;
+  font-weight: 950;
+  box-shadow: 0 10px 24px rgba(212, 148, 26, 0.22);
+}
+
+.cancel {
+  min-height: 30px;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@keyframes cityPopupIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -71,6 +71,37 @@ const mcpTools: FunctionDeclaration[] = [
     },
   },
   {
+    name: "modify_cart",
+    description:
+      "Modify the user's current cart. Use when the user asks to add a visible product, remove an existing cart item, change quantity, or clear the cart. Use product_index for visible product numbers and product_name/product_id for named items.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          description: "One of: add, add_all_visible, remove, set_quantity, clear.",
+        },
+        product_id: {
+          type: Type.STRING,
+          description: "Product ID if known.",
+        },
+        product_index: {
+          type: Type.NUMBER,
+          description: "1-based visible product number, e.g. 2 for the second visible product.",
+        },
+        product_name: {
+          type: Type.STRING,
+          description: "Visible product name or cart item name, full or partial.",
+        },
+        quantity: {
+          type: Type.NUMBER,
+          description: "Quantity to add or set. Default 1.",
+        },
+      },
+      required: ["action"],
+    },
+  },
+  {
     name: "create_order",
     description:
       "Create a Kapruka order and get a payment link. Use ONLY when the user has confirmed all checkout details (recipient, address, cart items).",

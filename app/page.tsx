@@ -127,6 +127,7 @@ type VoiceSearchArgs = {
 };
 
 type VoiceCartAddArgs = {
+  action?: "add" | "remove" | "set_quantity" | "clear" | string | null;
   product_id?: string | null;
   productId?: string | null;
   product_index?: number | string | null;
@@ -252,9 +253,21 @@ type ChatApiPayload = {
   order?: unknown;
   label?: ChatMessage["label"];
   quickReplies?: string[];
+  cartActions?: CartAction[];
 };
 
 type ConversationLanguage = "en" | "si" | "ta";
+
+type CartAction = {
+  action: "add" | "remove" | "set_quantity" | "clear";
+  product_id?: string | null;
+  productId?: string | null;
+  product_index?: number | string | null;
+  productIndex?: number | string | null;
+  product_name?: string | null;
+  productName?: string | null;
+  quantity?: number | string | null;
+};
 
 function money(price?: { amount: number | null; currency: string }) {
   if (!price || price.amount == null) return "Price on request";
@@ -1673,6 +1686,8 @@ function HomeExperience() {
             stream: true,
             orderDraft: orderDraft ? { stage: orderDraft.stage } : null,
             language: conversationLanguageRef.current,
+            cart: cart.map((item) => ({ product: item.product, quantity: item.quantity })),
+            visibleProducts: latestVisibleProducts(),
           }),
         });
 
@@ -1711,6 +1726,7 @@ function HomeExperience() {
             setRightTab("product");
             setDetailOpen(true);
           }
+          applyCartActions(data.cartActions, data.products ?? []);
 
           setMessages((prev) =>
             prev.map((message) =>
@@ -1823,6 +1839,7 @@ function HomeExperience() {
       setRightTab("product");
       setDetailOpen(true);
     }
+    applyCartActions(data.cartActions, data.products ?? []);
     setMessages((prev) =>
       prev.map((message) =>
         message.id === assistantId
@@ -2245,28 +2262,108 @@ function HomeExperience() {
   }, [messages, selectedProduct, voiceSession.shownProducts]);
 
   const handleVoiceCartAdd = useCallback((args: VoiceCartAddArgs) => {
-    const product = findVoiceProduct(args);
+    const rawAction = String(args.action ?? "add").toLowerCase().replace("-", "_");
+    const action = rawAction === "set" || rawAction === "update" ? "set_quantity" : rawAction;
+
+    if (action === "clear") {
+      setCart([]);
+      setCartOpen(true);
+      setRightTab("cart");
+      setDetailOpen(true);
+      return {
+        ok: true,
+        action,
+        cart_count_after_request: 0,
+      };
+    }
+    if (action === "add_all_visible") {
+      const products = latestVoiceProductsRef.current.length
+        ? latestVoiceProductsRef.current
+        : messages.flatMap((message) => message.products ?? []).slice(0, 8);
+      if (!products.length) {
+        return { ok: false, error: "No visible products to add." };
+      }
+      products.slice(0, 8).forEach((product) => addToCart(product));
+      setCartOpen(true);
+      setRightTab("cart");
+      setDetailOpen(true);
+      return {
+        ok: true,
+        action,
+        quantity: products.length,
+        cart_count_after_request: cart.reduce((sum, item) => sum + item.quantity, 0) + products.length,
+      };
+    }
+
+    const resolveCartProduct = () => {
+      const productId = String(args.product_id ?? args.productId ?? "").trim();
+      const productName = String(args.product_name ?? args.productName ?? "").trim().toLowerCase();
+      const index = Number(args.product_index ?? args.productIndex);
+
+      if (productId) {
+        const byId = cart.find((item) => item.product.id === productId)?.product;
+        if (byId) return byId;
+      }
+      if (Number.isInteger(index) && index > 0) {
+        const byIndex = cart[index - 1]?.product;
+        if (byIndex) return byIndex;
+      }
+      if (productName) {
+        const words = productName.split(/\s+/).filter((word) => word.length > 2);
+        return cart.find((item) => {
+          const name = item.product.name.toLowerCase();
+          return name.includes(productName) || words.every((word) => name.includes(word));
+        })?.product ?? cart.find((item) => {
+          const name = item.product.name.toLowerCase();
+          return words.some((word) => name.includes(word));
+        })?.product ?? null;
+      }
+      return null;
+    };
+
+    const product = action === "remove" || action === "set_quantity"
+      ? resolveCartProduct()
+      : findVoiceProduct(args);
     if (!product) {
       return {
         ok: false,
-        error: "No visible product matched. Ask the user which product number to add.",
+        error: action === "add"
+          ? "No visible product matched. Ask the user which product number to add."
+          : "No cart item matched. Ask the user which cart item to change.",
       };
     }
 
     const quantity = Math.max(1, Math.min(10, Number(args.quantity ?? 1) || 1));
-    for (let i = 0; i < quantity; i++) {
-      addToCart(product);
+    if (action === "remove") {
+      setCart((prev) => prev.filter((item) => item.product.id !== product.id));
+    } else if (action === "set_quantity") {
+      setCart((prev) =>
+        prev.map((item) => item.product.id === product.id ? { ...item, quantity } : item)
+          .filter((item) => item.quantity > 0)
+      );
+    } else {
+      for (let i = 0; i < quantity; i++) {
+        addToCart(product);
+      }
     }
     setSelectedProduct({ product });
     prefetchProductDetail(product.id);
+    setCartOpen(true);
+    setRightTab("cart");
+    setDetailOpen(true);
 
     return {
       ok: true,
+      action,
       product_id: product.id,
       name: product.name,
       quantity,
       price: product.price?.amount ?? null,
-      cart_count_after_request: cart.reduce((sum, item) => sum + item.quantity, 0) + quantity,
+      cart_count_after_request: action === "remove"
+        ? Math.max(0, cart.reduce((sum, item) => sum + item.quantity, 0) - (cart.find((item) => item.product.id === product.id)?.quantity ?? 0))
+        : action === "set_quantity"
+          ? cart.reduce((sum, item) => sum + (item.product.id === product.id ? quantity : item.quantity), 0)
+          : cart.reduce((sum, item) => sum + item.quantity, 0) + quantity,
     };
   }, [cart, findVoiceProduct]);
 
@@ -2949,6 +3046,8 @@ function HomeExperience() {
             userText,
           },
           language: conversationLanguageRef.current,
+          cart: cart.map((item) => ({ product: item.product, quantity: item.quantity })),
+          visibleProducts: latestVisibleProducts(),
         }),
       });
       const data = (await res.json()) as ChatApiPayload;
@@ -2996,6 +3095,92 @@ function HomeExperience() {
         .map((item) => (item.product.id === productId ? { ...item, quantity: item.quantity + delta } : item))
         .filter((item) => item.quantity > 0)
     );
+  }
+
+  function latestVisibleProducts() {
+    const latestProductMessage = [...messages].reverse().find((message) => message.products?.length);
+    return latestProductMessage?.products ?? latestVoiceProductsRef.current;
+  }
+
+  function resolveCartActionProduct(action: CartAction, productsHint: Product[] = []) {
+    const productId = String(action.product_id ?? action.productId ?? "").trim();
+    const productName = String(action.product_name ?? action.productName ?? "").trim().toLowerCase();
+    const productIndex = Number(action.product_index ?? action.productIndex);
+    const visibleProducts = productsHint.length ? productsHint : latestVisibleProducts();
+    const allProducts = Array.from(
+      new Map([
+        ...visibleProducts,
+        ...(selectedProduct ? [selectedProduct.product] : []),
+        ...latestVoiceProductsRef.current,
+        ...messages.flatMap((message) => message.products ?? []),
+        ...cart.map((item) => item.product),
+      ].map((product) => [product.id, product])).values()
+    );
+
+    if (productId) {
+      const byId = allProducts.find((product) => product.id === productId);
+      if (byId) return byId;
+    }
+
+    if (Number.isInteger(productIndex) && productIndex > 0) {
+      const byIndex = visibleProducts[productIndex - 1];
+      if (byIndex) return byIndex;
+    }
+
+    if (productName) {
+      const words = productName.split(/\s+/).filter((word) => word.length > 2);
+      return allProducts.find((product) => {
+        const name = product.name.toLowerCase();
+        return name.includes(productName) || words.every((word) => name.includes(word));
+      }) ?? allProducts.find((product) => {
+        const name = product.name.toLowerCase();
+        return words.some((word) => name.includes(word));
+      }) ?? null;
+    }
+
+    return null;
+  }
+
+  function applyCartActions(actions?: CartAction[], productsHint: Product[] = []) {
+    if (!actions?.length) return;
+    let openedCart = false;
+    actions.forEach((action) => {
+      const quantity = Math.max(1, Math.min(99, Number(action.quantity ?? 1) || 1));
+      if (action.action === "clear") {
+        setCart([]);
+        openedCart = true;
+        return;
+      }
+
+      const product = resolveCartActionProduct(action, productsHint);
+      if (!product) return;
+
+      setCart((prev) => {
+        if (action.action === "remove") {
+          return prev.filter((item) => item.product.id !== product.id);
+        }
+        if (action.action === "set_quantity") {
+          return quantity <= 0
+            ? prev.filter((item) => item.product.id !== product.id)
+            : prev.some((item) => item.product.id === product.id)
+              ? prev.map((item) => item.product.id === product.id ? { ...item, quantity } : item)
+              : [...prev, { product, quantity }];
+        }
+        const found = prev.find((item) => item.product.id === product.id);
+        return found
+          ? prev.map((item) => item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item)
+          : [...prev, { product, quantity }];
+      });
+      setSelectedProduct({ product });
+      prefetchProductDetail(product.id);
+      openedCart = true;
+    });
+
+    if (openedCart) {
+      setCartOpen(true);
+      setRightTab("cart");
+      setDetailOpen(true);
+    }
   }
 
   function saveRecentCart(items = cart) {
@@ -5815,6 +6000,12 @@ function LiveCallOverlay({
             context: {
               conversationSummary: conversationSummaryRef.current,
               shownProducts: shownProductsRef.current,
+              cartItems: cartItemsRef.current.map((item) => ({
+                productId: item.product.id,
+                productName: item.product.name,
+                quantity: item.quantity,
+                price: item.product.price?.amount ?? 0,
+              })),
               cartCount: cartItemsRef.current.length,
               cartTotal: cartItemsRef.current.reduce((sum, item) => sum + (item.product.price?.amount ?? 0) * item.quantity, 0),
               language: lockedLanguageRef.current,

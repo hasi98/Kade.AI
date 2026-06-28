@@ -86,6 +86,24 @@ type SearchResult = {
   applied_filters?: Record<string, unknown>;
 };
 
+type CartAction = {
+  action: "add" | "remove" | "set_quantity" | "clear";
+  product_id?: string | null;
+  product_index?: number | null;
+  product_name?: string | null;
+  quantity?: number | null;
+};
+
+type ChatCartItem = {
+  product?: Product;
+  quantity?: number;
+};
+
+type ChatToolContext = {
+  cart?: ChatCartItem[];
+  visibleProducts?: Product[];
+};
+
 type ImageInput = {
   base64: string;
   mimeType: string;
@@ -110,6 +128,106 @@ const TAMIL_SHOPPING_RE = /தேடு|காட்டு|வாங்க|அ�
 
 function isRomanticRecoveryQuery(rawQuery: string) {
   return /\b(girlfriend|gf|wife|love|romantic|sorry|apology|messed up|angry|mad|late|safe combo|safe apology combo|apology combo|make it grand)\b/i.test(rawQuery);
+}
+
+function cartContextText(context: ChatToolContext = {}) {
+  const visible = (context.visibleProducts ?? [])
+    .slice(0, 8)
+    .map((product, index) => `${index + 1}. ${product.name} (${product.id}) - Rs. ${Number(product.price?.amount ?? 0).toLocaleString("en-LK")}`)
+    .join("\n") || "No visible products.";
+  const cart = (context.cart ?? [])
+    .filter((item) => item.product?.id)
+    .map((item, index) => `${index + 1}. ${item.product?.name} (${item.product?.id}) x${Number(item.quantity ?? 1)}`)
+    .join("\n") || "Cart is empty.";
+
+  return `\n\nCURRENT VISIBLE PRODUCTS:\n${visible}\n\nCURRENT CART:\n${cart}\n\nCART TOOL RULES:\nUse modify_cart when the user asks to add, add all visible products, remove, change quantity, or clear cart items. For add, prefer visible product number/id/name. For "add all", use action add_all_visible. For remove or quantity changes, prefer cart item id/name. Do not claim the cart changed unless modify_cart returns ok=true.`;
+}
+
+function findProductInContext(args: Record<string, unknown>, context: ChatToolContext, mode: "visible" | "cart" | "any") {
+  const productId = String(args.product_id ?? args.productId ?? "").trim();
+  const productName = String(args.product_name ?? args.productName ?? "").trim().toLowerCase();
+  const productIndex = Number(args.product_index ?? args.productIndex);
+  const visible = context.visibleProducts ?? [];
+  const cartProducts = (context.cart ?? []).map((item) => item.product).filter((product): product is Product => Boolean(product?.id));
+  const sources = mode === "visible" ? visible : mode === "cart" ? cartProducts : [...visible, ...cartProducts];
+  const uniqueProducts = Array.from(new Map(sources.map((product) => [product.id, product])).values());
+
+  if (productId) {
+    const byId = uniqueProducts.find((product) => product.id === productId);
+    if (byId) return byId;
+  }
+
+  if (Number.isInteger(productIndex) && productIndex > 0) {
+    const indexed = visible[productIndex - 1] ?? cartProducts[productIndex - 1];
+    if (indexed && (mode !== "visible" || visible.includes(indexed))) return indexed;
+  }
+
+  if (productName) {
+    const words = productName.split(/\s+/).filter((word) => word.length > 2);
+    return uniqueProducts.find((product) => {
+      const name = product.name.toLowerCase();
+      return name.includes(productName) || words.every((word) => name.includes(word));
+    }) ?? uniqueProducts.find((product) => {
+      const name = product.name.toLowerCase();
+      return words.some((word) => name.includes(word));
+    }) ?? null;
+  }
+
+  return null;
+}
+
+function handleCartTool(args: Record<string, unknown>, context: ChatToolContext = {}) {
+  const rawAction = String(args.action ?? "").trim().toLowerCase().replace("-", "_");
+  const action = rawAction === "set" || rawAction === "update" ? "set_quantity" : rawAction;
+  if (action === "clear") {
+    return { ok: true, action: { action: "clear" } satisfies CartAction };
+  }
+  if (action === "add_all_visible") {
+    const quantity = Math.max(1, Math.min(99, Number(args.quantity ?? 1) || 1));
+    const actions = (context.visibleProducts ?? []).slice(0, 8).map((product): CartAction => ({
+      action: "add",
+      product_id: product.id,
+      product_name: product.name,
+      quantity,
+    }));
+    return actions.length
+      ? { ok: true, actions }
+      : { ok: false, error: "No visible products to add." };
+  }
+  if (!["add", "remove", "set_quantity"].includes(action)) {
+    return { ok: false, error: "Unknown cart action. Use add, add_all_visible, remove, set_quantity, or clear." };
+  }
+
+  const mode = action === "add" ? "visible" : "cart";
+  const product = findProductInContext(args, context, mode);
+  if (!product) {
+    return {
+      ok: false,
+      error: action === "add"
+        ? "No visible product matched. Ask which product number to add."
+        : "No cart item matched. Ask which cart item to change.",
+    };
+  }
+
+  const quantity = Math.max(0, Math.min(99, Number(args.quantity ?? 1) || 1));
+  return {
+    ok: true,
+    action: {
+      action: action as CartAction["action"],
+      product_id: product.id,
+      product_name: product.name,
+      quantity,
+    } satisfies CartAction,
+  };
+}
+
+function createToolHandler(context: ChatToolContext = {}) {
+  return async (name: string, args: Record<string, unknown>): Promise<unknown> => {
+    if (name === "modify_cart") {
+      return handleCartTool(args, context);
+    }
+    return handleToolCall(name, args);
+  };
 }
 
 const SINGLISH_FOOD_SIGNALS = [
@@ -735,6 +853,16 @@ function extractOrder(toolResults: Array<{ name: string; result: unknown }>) {
   return null;
 }
 
+function extractCartActions(toolResults: Array<{ name: string; result: unknown }>): CartAction[] {
+  return toolResults.flatMap((tr) => {
+    if (tr.name !== "modify_cart") return [];
+    const result = tr.result as { ok?: boolean; action?: CartAction; actions?: CartAction[] };
+    if (!result?.ok) return [];
+    if (Array.isArray(result.actions)) return result.actions;
+    return result.action ? [result.action] : [];
+  });
+}
+
 function orderCreatedReply(order: OrderCreatedMetadata, delivery: unknown) {
   const deliveryRecord = delivery && typeof delivery === "object" ? (delivery as Record<string, unknown>) : {};
   const city = typeof deliveryRecord.city === "string" ? deliveryRecord.city : "the selected city";
@@ -946,6 +1074,7 @@ async function chatWithModelFallback({
   primaryModel,
   prompt,
   enableGoogleSearch,
+  toolHandler = handleToolCall,
 }: {
   message: string;
   history: Content[];
@@ -953,10 +1082,11 @@ async function chatWithModelFallback({
   primaryModel: TextModel;
   prompt?: string;
   enableGoogleSearch?: boolean;
+  toolHandler?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 }) {
   try {
     return {
-      ...(await chatWithTools(message, history, handleToolCall, audio, primaryModel, {
+      ...(await chatWithTools(message, history, toolHandler, audio, primaryModel, {
         prompt,
         enableGoogleSearch,
       })),
@@ -970,7 +1100,7 @@ async function chatWithModelFallback({
 
     try {
       return {
-        ...(await chatWithTools(message, history, handleToolCall, audio, fallbackModel, {
+        ...(await chatWithTools(message, history, toolHandler, audio, fallbackModel, {
           prompt,
           enableGoogleSearch,
         })),
@@ -1042,6 +1172,10 @@ addresses, English product names, or mixed-language corrections.
 Only product names, brand names, prices, and city names may stay as written.`;
 }
 
+function promptWithRuntimeContext(basePrompt: string, language?: string, context: ChatToolContext = {}) {
+  return `${promptWithLockedLanguage(basePrompt, language)}${cartContextText(context)}`;
+}
+
 function sse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -1102,6 +1236,7 @@ async function routedChatResponse({
   classifierPromise,
   startedAt,
   language,
+  toolContext = {},
 }: {
   message: string;
   history: Content[];
@@ -1109,6 +1244,7 @@ async function routedChatResponse({
   classifierPromise: Promise<boolean>;
   startedAt: number;
   language?: LockedLanguage;
+  toolContext?: ChatToolContext;
 }) {
   const obviousComplex = hasComplexShoppingSignal(message ?? "") || isRecipientGiftConversation(message ?? "", history);
   const directSearchReady = hasEnoughInfoToSearch(message ?? "", history);
@@ -1120,14 +1256,15 @@ async function routedChatResponse({
     : "";
   const basePrompt = isComplex ? complexPromptWithResearch(research) : KADE_TEXT_SYSTEM_PROMPT;
   const routeOptions = isComplex
-    ? { prompt: promptWithLockedLanguage(basePrompt, language), enableGoogleSearch: false }
-    : { prompt: promptWithLockedLanguage(basePrompt, language) };
+    ? { prompt: promptWithRuntimeContext(basePrompt, language, toolContext), enableGoogleSearch: false }
+    : { prompt: promptWithRuntimeContext(basePrompt, language, toolContext) };
 
   const { text, toolResults, modelUsed } = await chatWithModelFallback({
     message,
     history,
     audio,
     primaryModel,
+    toolHandler: createToolHandler(toolContext),
     ...routeOptions,
   });
   logModelRoute(routeIntent, modelUsed, startedAt);
@@ -1135,6 +1272,7 @@ async function routedChatResponse({
   const products = extractProducts(toolResults);
   const delivery = extractDelivery(toolResults);
   const order = extractOrder(toolResults);
+  const cartActions = extractCartActions(toolResults);
   const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
   let label = null;
@@ -1148,6 +1286,7 @@ async function routedChatResponse({
     products,
     delivery,
     order,
+    cartActions,
     label,
     model: modelUsed,
     intent: routeIntent,
@@ -1173,6 +1312,7 @@ function streamChatResponse({
   classifierPromise,
   startedAt,
   language,
+  toolContext = {},
 }: {
   message: string;
   history: Content[];
@@ -1180,6 +1320,7 @@ function streamChatResponse({
   classifierPromise: Promise<boolean>;
   startedAt: number;
   language?: LockedLanguage;
+  toolContext?: ChatToolContext;
 }) {
   const encoder = new TextEncoder();
 
@@ -1213,6 +1354,7 @@ function streamChatResponse({
               classifierPromise: Promise.resolve(true),
               startedAt,
               language,
+              toolContext,
             });
 
             const starterReply = await starterPromise;
@@ -1234,6 +1376,7 @@ function streamChatResponse({
                 classifierPromise: Promise.resolve(false),
                 startedAt,
                 language,
+                toolContext,
               })
             );
           }
@@ -1269,7 +1412,7 @@ export async function POST(req: NextRequest) {
   let routeIntent = "SIMPLE";
 
   try {
-    const { message, history, audio, image, stream, orderDraft, language } = (await req.json()) as {
+    const { message, history, audio, image, stream, orderDraft, language, cart, visibleProducts } = (await req.json()) as {
       message: string;
       history?: Content[];
       audio?: { data: string; mimeType: string };
@@ -1277,8 +1420,14 @@ export async function POST(req: NextRequest) {
       stream?: boolean;
       orderDraft?: { stage?: string };
       language?: LockedLanguage;
+      cart?: ChatCartItem[];
+      visibleProducts?: Product[];
     };
     const conversationHistory: Content[] = history ?? [];
+    const toolContext: ChatToolContext = {
+      cart: Array.isArray(cart) ? cart : [],
+      visibleProducts: Array.isArray(visibleProducts) ? visibleProducts : [],
+    };
 
     if (image?.base64 && image.mimeType) {
       const result = await imageSearchResponse(message ?? "", image);
@@ -1308,6 +1457,7 @@ export async function POST(req: NextRequest) {
         classifierPromise,
         startedAt,
         language,
+        toolContext,
       });
     }
 
@@ -1324,14 +1474,15 @@ export async function POST(req: NextRequest) {
       : "";
     const basePrompt = isComplex ? complexPromptWithResearch(research) : KADE_TEXT_SYSTEM_PROMPT;
     const routeOptions = isComplex
-      ? { prompt: promptWithLockedLanguage(basePrompt, language), enableGoogleSearch: false }
-      : { prompt: promptWithLockedLanguage(basePrompt, language) };
+      ? { prompt: promptWithRuntimeContext(basePrompt, language, toolContext), enableGoogleSearch: false }
+      : { prompt: promptWithRuntimeContext(basePrompt, language, toolContext) };
 
     const { text, toolResults, modelUsed } = await chatWithModelFallback({
       message,
       history: conversationHistory,
       audio,
       primaryModel,
+      toolHandler: createToolHandler(toolContext),
       ...routeOptions,
     });
     logModelRoute(routeIntent, modelUsed, startedAt);
@@ -1339,6 +1490,7 @@ export async function POST(req: NextRequest) {
     const products = extractProducts(toolResults);
     const delivery = extractDelivery(toolResults);
     const order = extractOrder(toolResults);
+    const cartActions = extractCartActions(toolResults);
     const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
     // Determine label based on what tools were called
@@ -1353,6 +1505,7 @@ export async function POST(req: NextRequest) {
       products,
       delivery,
       order,
+      cartActions,
       label,
       model: modelUsed,
     });

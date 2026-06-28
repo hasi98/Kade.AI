@@ -42,14 +42,23 @@ const AVAILABLE_VOICES = new Set([
 
 type LiveContextProduct = {
   index?: number;
+  id?: string;
   name?: string;
   price?: number;
   inStock?: boolean;
 };
 
+type LiveContextCartItem = {
+  productId?: string;
+  productName?: string;
+  quantity?: number;
+  price?: number;
+};
+
 type LiveTokenContext = {
   conversationSummary?: string;
   shownProducts?: LiveContextProduct[];
+  cartItems?: LiveContextCartItem[];
   cartCount?: number;
   cartTotal?: number;
   language?: "en" | "si" | "ta";
@@ -217,25 +226,29 @@ const liveTools: FunctionDeclaration[] = [
   {
     name: "update_cart_from_voice",
     description:
-      "Add one of the currently visible Kapruka products to the cart during voice conversation. Call this whenever the user picks, selects, says add to cart, says 'number two', 'second one', names a visible product, or asks to buy a visible product. Do not say the cart was updated until this function returns.",
+      "Modify the cart during voice conversation. Call this whenever the user asks to add a visible product, remove an existing cart item, change quantity, or clear the cart. Do not say the cart was updated until this function returns.",
     parameters: {
       type: Type.OBJECT,
       properties: {
+        action: {
+          type: Type.STRING,
+          description: "One of: add, add_all_visible, remove, set_quantity, clear. Default add.",
+        },
         productId: {
           type: Type.STRING,
-          description: "Product ID from the latest kapruka_search_products result, if known.",
+          description: "Product ID from visible products or cart items, if known.",
         },
         productIndex: {
           type: Type.NUMBER,
-          description: "1-based visible product number, e.g. 2 for 'second one'.",
+          description: "1-based visible product number for add, or cart item number for remove/set_quantity.",
         },
         productName: {
           type: Type.STRING,
-          description: "Visible product name or partial name, if the user referred by name.",
+          description: "Visible product or cart item name, full or partial.",
         },
         quantity: {
           type: Type.NUMBER,
-          description: "Quantity to add. Default 1.",
+          description: "Quantity to add or set. Default 1.",
         },
       },
     },
@@ -280,9 +293,15 @@ function voiceContextPrompt(context?: LiveTokenContext) {
   const products = context?.shownProducts?.length
     ? context.shownProducts
         .slice(0, 8)
-        .map((product, index) => `${product.index ?? index + 1}. ${product.name ?? "Product"} Rs.${Number(product.price ?? 0).toLocaleString("en-LK")} ${product.inStock === false ? "(stock uncertain)" : ""}`)
+        .map((product, index) => `${product.index ?? index + 1}. ${product.name ?? "Product"} ${product.id ? `(${product.id}) ` : ""}Rs.${Number(product.price ?? 0).toLocaleString("en-LK")} ${product.inStock === false ? "(stock uncertain)" : ""}`)
         .join("\n")
     : "No products are currently shown.";
+  const cartItems = context?.cartItems?.length
+    ? context.cartItems
+        .slice(0, 12)
+        .map((item, index) => `${index + 1}. ${item.productName ?? "Cart item"} ${item.productId ? `(${item.productId}) ` : ""}x${Number(item.quantity ?? 1)} Rs.${Number(item.price ?? 0).toLocaleString("en-LK")}`)
+        .join("\n")
+    : "Cart is empty.";
 
   const history = context?.conversationSummary?.trim()
     ? context.conversationSummary.trim().slice(-1800)
@@ -322,6 +341,7 @@ ${products}
 CART:
 Cart items: ${cartCount}
 Cart total: Rs.${cartTotal.toLocaleString("en-LK")}
+${cartItems}
 
 CONVERSATION SO FAR:
 ${history}
@@ -352,7 +372,8 @@ SHOPPING FLOW IN VOICE:
 - Ask one thing at a time for delivery details.
 - If the user selects a cake, ask if it should be added to cart, then suggest flowers only if it fits.
 - If the user selects flowers, ask if it should be added to cart, then ask about a personal note.
-- If the user selects or asks to add a visible product, call update_cart_from_voice. Never only say you added it.
+- If the user selects or asks to add a visible product, call update_cart_from_voice with action="add". If they say "add all", use action="add_all_visible". Never only say you added it.
+- If the user asks to remove an item, remove an old cart item, reduce quantity, change quantity, or clear the cart, call update_cart_from_voice with action="remove", action="set_quantity", or action="clear". Use the cart item name/id/number from CURRENT CART.
 - If the user wants checkout/order/payment link, collect checkout details in natural voice and fill each field immediately with fill_order_field.
 - During checkout, if the user asks what a field means, asks for help, sounds confused, corrects you, or asks a question, answer naturally in the user's language. Do not treat that question as a field value.
 - During checkout, NEVER call kapruka_search_products for answers to checkout questions. Phrases like "no need to put my name", "it's a surprise", "keep anonymous", "yes they are correct", phone numbers, addresses, city names, dates, and gift messages are checkout answers, not product searches.

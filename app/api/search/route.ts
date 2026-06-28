@@ -24,8 +24,15 @@ function productSearchText(product: Product) {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
+function hasModelVehicleIntent(input: string) {
+  const lower = input.toLowerCase();
+  return /\b(hot wheels?|die-?cast|dicast|miniature cars?|mini cars?|small cars?|toy cars?|model cars?|collect(?:ible|able) cars?|car stuff|vehicle models?|bike models?)\b/.test(lower) ||
+    (/\b(cars?|vehicles?|bikes?|motorbikes?|motorcycles?)\b/.test(lower) && /\b(model|models|toy|toys|small|mini|miniature|collect(?:ible|able)|die-?cast|dicast)\b/.test(lower));
+}
+
 function searchKind(input: string, intent: ReturnType<typeof extractSearchIntent>) {
   const lower = `${input} ${intent.q} ${intent.category ?? ""}`.toLowerCase();
+  if (hasModelVehicleIntent(lower)) return "modelVehicles";
   if (/\b(biscuit|biscuits|cookie|cookies|cracker|crackers|munchee|maliban|oreo)\b/.test(lower)) return "biscuits";
   if (/\b(chocolate|choco|ferrero|truffle)\b/.test(lower) && /\b(cake|cakes|bento)\b/.test(lower)) return "chocolateCake";
   if (/\b(cake|cakes|bento|icing|birthday)\b/.test(lower) || intent.category === "Cakes") return "cakes";
@@ -53,6 +60,11 @@ function relevantProducts(products: Product[], kind: ReturnType<typeof searchKin
     }
     if (kind === "flowers") {
       return /\b(flower|flowers|rose|roses|bouquet)\b/.test(text);
+    }
+    if (kind === "modelVehicles") {
+      return /\b(car|cars|vehicle|vehicles|truck|jeep|bike|motorbike|motorcycle|toyota|bmw|lamborghini|ferrari|porsche|mercedes|prado|hot wheels?|die-?cast|dicast|alloy|model|rc|remote)\b/.test(text) &&
+        /\b(model|models|toy|toys|die-?cast|dicast|alloy|mini|miniature|rc|remote|collectible|collectable)\b/.test(text) &&
+        !/\b(dash\s*cam|camera|watch|wrist|phone|cake|chocolate|flower|rose|bouquet|perfume|bottle)\b/.test(text);
     }
     return true;
   });
@@ -82,6 +94,9 @@ function searchCandidates(input: string, intent: ReturnType<typeof extractSearch
     semanticCandidates.push("cake", "birthday cake", "bento cake");
   }
 
+  if (hasModelVehicleIntent(lower)) {
+    semanticCandidates.push("diecast model car", "toy car", "car model", "vehicle model");
+  }
   if (/\b(biscuit|biscuits|cookie|cookies|cracker|crackers|munchee|maliban)\b/.test(lower)) {
     semanticCandidates.push("biscuits", "cookies", "Munchee biscuits");
   }

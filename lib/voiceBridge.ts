@@ -119,7 +119,7 @@ export class VoiceBridge {
       .join(", ");
 
     this.sender(
-      `[CONTEXT UPDATE: Currently showing ${products.length} products: ${productSummary || "none"}. Cart has ${cartItems.length} items, total Rs.${cartTotal.toLocaleString("en-LK")}. Visible products are context, not a limit. If the user asks for more, another type, different options, or a new product/category, call kapruka_search_products again.]`
+      `[SYSTEM CONTEXT UPDATE - do not say this aloud, do not quote it, do not treat it as a user message. Currently showing ${products.length} products: ${productSummary || "none"}. Cart has ${cartItems.length} items, total Rs.${cartTotal.toLocaleString("en-LK")}. Visible products are context, not a limit. If the user asks for more, another type, different options, or a new product/category, call kapruka_search_products again.]`
     );
   }
 }

@@ -265,6 +265,141 @@ function firstImage(product: Product) {
   return product.image_url || product.images?.[0] || "";
 }
 
+function stripInternalControlText(text: string) {
+  const withoutBracketedControl = text
+    .replace(/\[[^\]]*INTERNAL UI EVENT[^\]]*\]/gi, " ")
+    .replace(/\[[^\]]*(?:SYSTEM\s+)?CONTEXT UPDATE[^\]]*\]/gi, " ");
+  if (/INTERNAL UI EVENT|(?:SYSTEM\s+)?CONTEXT UPDATE|do not call tools for this message|do not say this aloud|Say this aloud/i.test(withoutBracketedControl)) {
+    return "";
+  }
+  return withoutBracketedControl.replace(/\s+/g, " ").trim();
+}
+
+function cleanVoiceTranscript(text: string) {
+  const safeText = stripInternalControlText(text);
+  if (!safeText) {
+    return "";
+  }
+  const normalized = safeText
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,;:.!?])/g, "$1")
+    .replace(/([,;:!?])(?=\S)/g, "$1 ")
+    .replace(/\.([A-Z])/g, ". $1")
+    .replace(/\b(chocolate)(cakes?)\b/gi, "$1 $2")
+    .replace(/\b(birthday)(cakes?)\b/gi, "$1 $2")
+    .replace(/\b(some)(options?)\b/gi, "$1 $2")
+    .replace(/\b(on)(screen)\b/gi, "$1 $2")
+    .replace(/\b(by)(number)\b/gi, "$1 $2")
+    .replace(/\b(or)(tap)\b/gi, "$1 $2")
+    .trim();
+  if (!normalized) return "";
+  const parts = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    const deduped: string[] = [];
+    for (const part of parts) {
+      const last = deduped[deduped.length - 1];
+      const compactPart = part.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      const compactLast = last?.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      if (compactPart && compactPart === compactLast) continue;
+      deduped.push(part);
+    }
+    return deduped.join(" ");
+  }
+  return normalized;
+}
+
+function transcriptFingerprint(text: string) {
+  return cleanVoiceTranscript(text).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function isNearDuplicateTranscript(a: string, b: string) {
+  const left = transcriptFingerprint(a);
+  const right = transcriptFingerprint(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const minLength = Math.min(left.length, right.length);
+  return minLength > 32 && (left.includes(right) || right.includes(left));
+}
+
+function isLikelyAssistantEcho(input: string, assistant: string) {
+  const inputFingerprint = transcriptFingerprint(input);
+  const assistantFingerprint = transcriptFingerprint(assistant);
+  if (inputFingerprint.length < 16 || assistantFingerprint.length < 16) return false;
+  if (inputFingerprint === assistantFingerprint) return true;
+  return assistantFingerprint.includes(inputFingerprint) || inputFingerprint.includes(assistantFingerprint);
+}
+
+function assistantIsWaitingForUser(text: string) {
+  const cleaned = cleanVoiceTranscript(text).toLowerCase();
+  if (!cleaned) return false;
+  return /[?]\s*$/.test(cleaned) ||
+    /\b(what kind|which kind|what type|which type|flavou?r|preference|prefer|specific|budget|city|where|who is it for|tell me|would you like|do you want|should i)\b/.test(cleaned);
+}
+
+function isAgeGatedGiftRequest(text: string) {
+  const lower = text.toLowerCase();
+  const hasGiftIntent =
+    /\b(gift|gifts|present|surprise|recommend|suggest|ideas?|what should|what would|would love|something nice|something special)\b/.test(lower) ||
+    /\b(show|find|search|send|buy|choose|pick)\b.*\b(gift|gifts|present|surprise)\b/.test(lower);
+  const hasAgeSensitiveRecipient =
+    /\b(girl|boy|girlfriend|gf|boyfriend|bf|daughter|son|kid|kids|child|children|teen|teenager|niece|nephew|wife|husband)\b/.test(lower);
+  return hasGiftIntent && hasAgeSensitiveRecipient;
+}
+
+function hasGiftRecipientAge(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    /\b(?:age|aged|old|years? old|yrs? old|y\/o|yo)\s*(?:is|:)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:she|he|they|girl|boy|girlfriend|boyfriend|gf|bf|daughter|son|kid|child|wife|husband)\s*(?:is|'s|age is|aged)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:she|he|they|girl|boy|girlfriend|boyfriend|gf|bf|daughter|son|kid|child|wife|husband)\s*(?:is|'s)?\s*(?:turning|turns?|becoming)\s*(?:into)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:turning|turns?|becoming)\s*(?:into)?\s*\d{1,2}\b/.test(lower) ||
+    /\b\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)\b/.test(lower)
+  );
+}
+
+function giftRequestNeedsAge(text: string, context = "") {
+  const combined = `${context}\n${text}`;
+  return isAgeGatedGiftRequest(combined) && !hasGiftRecipientAge(combined);
+}
+
+function isConcreteProductGiftRequest(text: string) {
+  return /\b(cakes?|bento|chocolates?|biscuits?|cookies?|crackers?|flowers?|roses?|bouquet|hamper|tea|coffee|perfume|spa ceylon|cosmetics?|jewellery|jewelry|teddy|toy|toys|book|books|watch|bag|handbag|wallet)\b/i.test(text) ||
+    hasModelVehicleIntent(text);
+}
+
+function shouldUseGiftResearchFlow(text: string, context = "") {
+  const combined = `${context}\n${text}`;
+  return isAgeGatedGiftRequest(combined) && !isConcreteProductGiftRequest(text);
+}
+
+function isVoiceStatusOnly(text: string) {
+  const cleaned = cleanVoiceTranscript(text).toLowerCase();
+  if (!cleaned) return true;
+  if (/^(okay|ok|sure|got it|perfect|nice|cool|great|alright|right|done|hari|seri|ela)[.!]*$/.test(cleaned)) {
+    return true;
+  }
+  if (/^(let me|i'll|i will)\s+(search|check|think|look|find|see|try|work|set|place|add)\b/.test(cleaned)) {
+    return true;
+  }
+  if (/^(checking|searching|looking up|setting up|placing order|selecting that product|switching voice|call ended|voice connection|gift idea)\b/.test(cleaned)) {
+    return true;
+  }
+  if (/^(api balamu|kapruka eke|city:|audio \d+ chunks?|test tone)\b/.test(cleaned)) {
+    return true;
+  }
+  return cleaned.length < 18 && !/[?]/.test(cleaned);
+}
+
+function isPostProductResultChatter(text: string) {
+  const cleaned = cleanVoiceTranscript(text).toLowerCase();
+  if (!cleaned) return true;
+  return /\b(options?|products?|cards?|visible|screen|pick|choose|select|number|tap|shown|showing)\b/.test(cleaned) &&
+    cleaned.length < 220;
+}
+
 function voiceSearchKey(query: string, args: VoiceSearchArgs = {}) {
   const category = String(args.category ?? "").toLowerCase().trim();
   const maxPrice = args.max_price == null ? "" : String(args.max_price).trim();
@@ -329,6 +464,16 @@ function stripMoreOptionsWords(text: string) {
     .replace(/\b(can you|could you|please|pls|i need|need|want|show|find|search|look|browse|check|for|me|some|more|another|other|different|else|next|again|new|options?|choices?|ones?|items?|things?|stuff|type|types|kind|kinds|tickets?)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasModelVehicleIntent(text: string) {
+  const lower = text.toLowerCase();
+  return /\b(hot wheels?|die-?cast|dicast|miniature cars?|mini cars?|small cars?|toy cars?|model cars?|collect(?:ible|able) cars?|car stuff|vehicle models?|bike models?)\b/.test(lower) ||
+    (/\b(cars?|vehicles?|bikes?|motorbikes?|motorcycles?)\b/.test(lower) && /\b(model|models|toy|toys|small|mini|miniature|collect(?:ible|able)|die-?cast|dicast)\b/.test(lower));
+}
+
+function normalizeProductSearchQuery(query: string) {
+  return hasModelVehicleIntent(query) ? "diecast model car" : query;
 }
 
 function inferSearchQueryFromProducts(products: Product[]) {
@@ -880,8 +1025,29 @@ function normalizeOrderEditField(text: string) {
   return null;
 }
 
+function sanitizedMessageText(message: ChatMessage) {
+  return message.source === "voice"
+    ? cleanVoiceTranscript(message.text)
+    : stripInternalControlText(message.text);
+}
+
+function hasVisibleMessageContent(message: ChatMessage) {
+  return Boolean(
+    message.text ||
+    message.products?.length ||
+    message.delivery ||
+    message.orderResult ||
+    message.image
+  );
+}
+
 function sanitizeMessages(messages: ChatMessage[]) {
-  return messages.map((message) => ({ ...message, image: undefined, isStreaming: false }));
+  return messages
+    .map((message) => {
+      const text = sanitizedMessageText(message);
+      return { ...message, text, image: undefined, isStreaming: false };
+    })
+    .filter(hasVisibleMessageContent);
 }
 
 function sortChatSessions(sessions: ChatSession[]) {
@@ -990,6 +1156,7 @@ function HomeExperience() {
   const closeLiveCall = useCallback(() => setShowLiveCall(false), []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastProductMessageRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -998,6 +1165,7 @@ function HomeExperience() {
   const chatSessionsRef = useRef<ChatSession[]>([]);
   const voiceBridgeRef = useRef(new VoiceBridge());
   const liveAssistantMessageIdRef = useRef<string | null>(null);
+  const lastFinalVoiceAssistantRef = useRef<{ text: string; at: number } | null>(null);
   const livePlaybackContextRef = useRef<AudioContext | null>(null);
   const latestVoiceProductsRef = useRef<Product[]>([]);
   const voiceSearchInFlightRef = useRef<Map<string, Promise<Product[]>>>(new Map());
@@ -1006,6 +1174,7 @@ function HomeExperience() {
   const voiceSearchMissRef = useRef<Map<string, number>>(new Map());
   const lastVoiceSearchRef = useRef<{ query: string; key: string; args: VoiceSearchArgs } | null>(null);
   const voiceSearchHistoryRef = useRef<{ key: string; ids: Set<string> } | null>(null);
+  const lastVoiceProductsShownAtRef = useRef(0);
   const orderPlacementInFlightRef = useRef(false);
   const orderPlacementPromiseRef = useRef<Promise<OrderCreatedMetadata | null> | null>(null);
   const lastPlacedOrderSignatureRef = useRef("");
@@ -1151,12 +1320,21 @@ function HomeExperience() {
   // Conversation history for Gemini
   const conversationHistory = useMemo(() => {
     return messages
-      .filter((m) => m.id !== "welcome")
+      .map((message) => ({ ...message, text: sanitizedMessageText(message) }))
+      .filter((m) => m.id !== "welcome" && hasVisibleMessageContent(m))
       .map((m) => ({
         role: m.role === "assistant" ? ("model" as const) : ("user" as const),
         parts: [{ text: m.text }],
       }));
   }, [messages]);
+
+  const displayMessages = useMemo(
+    () =>
+      messages
+        .map((message) => ({ ...message, text: sanitizedMessageText(message) }))
+        .filter(hasVisibleMessageContent),
+    [messages]
+  );
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + (item.product.price?.amount ?? 0) * item.quantity, 0),
@@ -1175,10 +1353,18 @@ function HomeExperience() {
     checkout.recipientPhone.trim() &&
     checkout.address.trim();
 
-  // Auto-scroll
   useEffect(() => {
+    const lastMessage = displayMessages[displayMessages.length - 1];
+    if (!lastMessage) return;
+    if (lastMessage.products?.length) {
+      lastProductMessageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (lastMessage.source === "voice" && lastMessage.role === "assistant") {
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [displayMessages, loading]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -1671,22 +1857,63 @@ function HomeExperience() {
     setMessages((prev) => {
       const last = prev[prev.length - 1];
       if (last?.role === "user" && last.source === "voice" && last.text === normalizedText) return prev;
-      return [...prev, { id: crypto.randomUUID(), role: "user", text: normalizedText, source: "voice" }];
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", text: normalizedText, source: "voice" };
+      // If the last message is a streaming voice assistant message that hasn't
+      // finished yet, insert the user message BEFORE it so chat order matches
+      // the real conversation sequence (user spoke first, model responded).
+      if (
+        last?.role === "assistant" &&
+        last.source === "voice" &&
+        last.isStreaming
+      ) {
+        return [...prev.slice(0, -1), userMsg, last];
+      }
+      return [...prev, userMsg];
     });
   }, []);
 
   const upsertVoiceAssistantMessage = useCallback((text: string, final = false) => {
-    const normalizedText = text.trim();
+    const normalizedText = cleanVoiceTranscript(text);
     if (!normalizedText) return;
+    const existingId = liveAssistantMessageIdRef.current;
+    const suppressAsStatus = isVoiceStatusOnly(normalizedText);
+    const suppressAsProductChatter =
+      Date.now() - lastVoiceProductsShownAtRef.current < 7000 &&
+      isPostProductResultChatter(normalizedText);
+
+    if (!final && !existingId) {
+      return;
+    }
+
+    if ((suppressAsStatus || suppressAsProductChatter) && (!existingId || final)) {
+      liveAssistantMessageIdRef.current = null;
+      if (final) {
+        voiceBridgeRef.current.handleAssistantText(normalizedText);
+      }
+      return;
+    }
+
+    const recentFinal = lastFinalVoiceAssistantRef.current;
+    if (
+      !liveAssistantMessageIdRef.current &&
+      recentFinal &&
+      Date.now() - recentFinal.at < 15000 &&
+      isNearDuplicateTranscript(normalizedText, recentFinal.text)
+    ) {
+      return;
+    }
 
     setMessages((prev) => {
-      const existingId = liveAssistantMessageIdRef.current;
       if (existingId) {
-        return prev.map((message) =>
-          message.id === existingId
-            ? { ...message, text: normalizedText, source: "voice", isStreaming: !final }
-            : message
-        );
+        const existingIndex = prev.findIndex((message) => message.id === existingId);
+        if (existingIndex >= 0) {
+          return prev.map((message) =>
+            message.id === existingId
+              ? { ...message, text: normalizedText, source: "voice", isStreaming: !final }
+              : message
+          );
+        }
+        liveAssistantMessageIdRef.current = null;
       }
 
       const id = crypto.randomUUID();
@@ -1705,6 +1932,7 @@ function HomeExperience() {
     });
 
     if (final) {
+      lastFinalVoiceAssistantRef.current = { text: normalizedText, at: Date.now() };
       voiceBridgeRef.current.handleAssistantText(normalizedText);
       liveAssistantMessageIdRef.current = null;
     }
@@ -1731,6 +1959,7 @@ function HomeExperience() {
 
   const ensureVoiceProductsMessage = useCallback((products: Product[]) => {
     if (!products.length) return;
+    lastVoiceProductsShownAtRef.current = Date.now();
     const productIds = new Set(products.map((product) => product.id));
     setMessages((prev) => {
       const alreadyVisible = prev.some((message) =>
@@ -1762,8 +1991,9 @@ function HomeExperience() {
     const normalizedQuery = wantsMore
       ? strippedMoreQuery || lastVoiceSearchRef.current?.query || inferSearchQueryFromProducts(latestVoiceProductsRef.current) || requestedQuery
       : requestedQuery;
-    if (!normalizedQuery) return [];
-    const baseDedupeKey = voiceSearchKey(normalizedQuery, args) || normalizedQuery.toLowerCase();
+    const searchQuery = normalizeProductSearchQuery(normalizedQuery);
+    if (!searchQuery) return [];
+    const baseDedupeKey = voiceSearchKey(searchQuery, args) || searchQuery.toLowerCase();
     const historyForQuery = voiceSearchHistoryRef.current?.key === baseDedupeKey
       ? voiceSearchHistoryRef.current
       : null;
@@ -1858,7 +2088,7 @@ function HomeExperience() {
     ]);
 
     try {
-      const rawProducts = await runSearch(searchBody(normalizedQuery, hasExplicitQuery && !wantsMore));
+      const rawProducts = await runSearch(searchBody(searchQuery, hasExplicitQuery && !wantsMore));
       const products = wantsMore
         ? rawProducts.filter((product) => !seenIds.has(product.id)).slice(0, limit)
         : rawProducts.slice(0, limit);
@@ -1876,12 +2106,15 @@ function HomeExperience() {
         const nextIds = wantsMore ? new Set(seenIds) : new Set<string>();
         products.forEach((product) => nextIds.add(product.id));
         voiceSearchHistoryRef.current = { key: baseDedupeKey, ids: nextIds };
-        lastVoiceSearchRef.current = { query: normalizedQuery, key: baseDedupeKey, args };
+        lastVoiceSearchRef.current = { query: searchQuery, key: baseDedupeKey, args };
       }
       if (products[0]) {
         setSelectedProduct({ product: products[0] });
         setRightTab("product");
         setDetailOpen(true);
+      }
+      if (products.length) {
+        lastVoiceProductsShownAtRef.current = Date.now();
       }
 
       const searchResultText = products.length && wantsMore
@@ -1941,7 +2174,11 @@ function HomeExperience() {
   }, [city, ensureVoiceProductsMessage, syncShownProducts, voiceSearchResultText, voiceSession.detectedBudget, voiceSession.detectedCity, voiceSession.detectedOccasion]);
 
   const handleVoiceShoppingIntent = useCallback(async (text: string, args: VoiceSearchArgs = {}) => {
-    const selected = resolveProductReference(text, voiceSession.shownProducts);
+    const lowerText = text.toLowerCase();
+    const hasSelectionIntent =
+      /\b(number|no\.?|#?\d+|first|second|third|fourth|fifth|cheap|cheapest|best|add|cart|select|choose|pick|ganna|damu|karamu)\b/.test(lowerText) ||
+      voiceSession.shownProducts.some((product) => product.name.length > 8 && lowerText.includes(product.name.toLowerCase()));
+    const selected = hasSelectionIntent ? resolveProductReference(text, voiceSession.shownProducts) : null;
     if (selected) {
       const fullProducts = [
         ...latestVoiceProductsRef.current,
@@ -3613,7 +3850,7 @@ function HomeExperience() {
               <strong>Drop image to search 🔍</strong>
             </div>
           )}
-          {messages.length <= 1 && (
+          {displayMessages.length <= 1 && (
           <section className={styles.commandDeck}>
             <div className={styles.commandHero}>
               <div className={styles.welcomeLogo}>
@@ -3643,9 +3880,10 @@ function HomeExperience() {
           </section>
           )}
 
-          {messages.map((message) => (
+          {displayMessages.map((message) => (
             <article
               key={message.id}
+              ref={message.products?.length ? lastProductMessageRef : undefined}
               className={clsx(
                 styles.message,
                 message.role === "user" && styles.messageUser,
@@ -4637,6 +4875,7 @@ function LiveCallOverlay({
   const directSearchFallbackTimerRef = useRef<number | null>(null);
   const pendingDirectSearchRef = useRef("");
   const pendingDirectSearchArgsRef = useRef<VoiceSearchArgs>({});
+  const pendingDirectSearchOutputCounterRef = useRef(0);
   const productActionFallbackTimerRef = useRef<number | null>(null);
   const pendingProductActionRef = useRef("");
   const audioChunkCountRef = useRef(0);
@@ -4654,6 +4893,7 @@ function LiveCallOverlay({
   const onContextSenderRef = useRef(onContextSender);
   const statusRef = useRef(status);
   const latestOutputTranscriptRef = useRef("");
+  const lastFinalOutputTranscriptRef = useRef("");
   const liveOutputCounterRef = useRef(0);
   const shownProductsRef = useRef(shownProducts);
   const cartItemsRef = useRef(cartItems);
@@ -4661,6 +4901,9 @@ function LiveCallOverlay({
   const lockedLanguageRef = useRef(lockedLanguage);
   const pendingCityToolRef = useRef<{ id?: string; name?: string; partialAddress?: string } | null>(null);
   const checkoutActiveRef = useRef(false);
+  const liveSearchInFlightRef = useRef(false);
+  const lastLiveSearchToolRef = useRef<{ input: string; at: number } | null>(null);
+  const lastLocalVoiceStatusRef = useRef<{ text: string; at: number } | null>(null);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -4742,27 +4985,11 @@ function LiveCallOverlay({
     }
     pendingDirectSearchRef.current = "";
     pendingDirectSearchArgsRef.current = {};
+    pendingDirectSearchOutputCounterRef.current = 0;
   }, []);
 
-  const scheduleDirectSearchFallback = useCallback((text: string, args: VoiceSearchArgs = {}) => {
-    pendingDirectSearchRef.current = text;
-    pendingDirectSearchArgsRef.current = args;
-    if (directSearchFallbackTimerRef.current) {
-      window.clearTimeout(directSearchFallbackTimerRef.current);
-    }
-    directSearchFallbackTimerRef.current = window.setTimeout(() => {
-      directSearchFallbackTimerRef.current = null;
-      const pendingText = pendingDirectSearchRef.current.trim();
-      const pendingArgs = pendingDirectSearchArgsRef.current;
-      pendingDirectSearchRef.current = "";
-      pendingDirectSearchArgsRef.current = {};
-      if (!pendingText || pendingText === lastDispatchedVoiceRef.current) return;
-      if (isBroadCakeSearch(pendingText)) return;
-      lastDispatchedVoiceRef.current = pendingText;
-      voiceBriefRef.current = [];
-      setTranscript("Searching Kapruka...");
-      void onShoppingRequestRef.current(pendingText, pendingArgs);
-    }, 1800);
+  const scheduleDirectSearchFallback = useCallback((_text: string, _args: VoiceSearchArgs = {}) => {
+    // Disabled intentionally: Gemini/Gemma must call search tools explicitly.
   }, []);
 
   const clearProductActionFallback = useCallback(() => {
@@ -4773,24 +5000,20 @@ function LiveCallOverlay({
     pendingProductActionRef.current = "";
   }, []);
 
-  const scheduleProductActionFallback = useCallback((text: string) => {
-    pendingProductActionRef.current = text;
-    if (productActionFallbackTimerRef.current) {
-      window.clearTimeout(productActionFallbackTimerRef.current);
-    }
-    productActionFallbackTimerRef.current = window.setTimeout(() => {
-      productActionFallbackTimerRef.current = null;
-      const pendingText = pendingProductActionRef.current.trim();
-      pendingProductActionRef.current = "";
-      if (!pendingText) return;
-      void onShoppingRequestRef.current(pendingText);
-    }, 1800);
+  const scheduleProductActionFallback = useCallback((_text: string) => {
+    // Disabled intentionally: Gemini/Gemma must call cart tools explicitly.
   }, []);
 
   const handleVoiceTranscript = useCallback((text: string) => {
-    const normalizedText = text.trim();
+    const normalizedText = cleanVoiceTranscript(text);
     if (normalizedText.length < 3) return;
     if (normalizedText === lastHandledInputTranscriptRef.current) return;
+    if (
+      isLikelyAssistantEcho(normalizedText, latestOutputTranscriptRef.current) ||
+      isLikelyAssistantEcho(normalizedText, lastFinalOutputTranscriptRef.current)
+    ) {
+      return;
+    }
     lastHandledInputTranscriptRef.current = normalizedText;
     onUserTranscriptRef.current(normalizedText);
 
@@ -4802,6 +5025,10 @@ function LiveCallOverlay({
       setCheckoutStatus("Collecting order details...");
     }
 
+    // Transcripts are display/history only. Gemini Live must call tools itself;
+    // local keyword fallbacks caused surprise searches after the model asked a question.
+    return;
+
     if (checkoutActiveRef.current) {
       clearDirectSearchFallback();
       clearProductActionFallback();
@@ -4812,6 +5039,12 @@ function LiveCallOverlay({
       /\b(delivery|deliver|shipping|ship)\b/.test(lower) &&
       /\b(fee|fees|cost|charge|charges|price|available|availability|how much|quote)\b/.test(lower);
     if (looksLikeDeliveryQuoteIntent) {
+      clearDirectSearchFallback();
+      clearProductActionFallback();
+      return;
+    }
+
+    if (giftRequestNeedsAge(normalizedText, conversationSummaryRef.current) || shouldUseGiftResearchFlow(normalizedText, conversationSummaryRef.current)) {
       clearDirectSearchFallback();
       clearProductActionFallback();
       return;
@@ -4829,8 +5062,8 @@ function LiveCallOverlay({
 
     const looksLikeProductReference =
       shownProductsRef.current.length > 0 &&
-      (/\b(number|no\.?|one|two|three|four|five|first|second|third|cheap|cheapest|best|hoda|laabu|eka|deka|thuna)\b/.test(lower) ||
-        /\b(add|cart|select|choose|ganna|damu|karamu)\b/.test(lower));
+      (/\b(number|no\.?|#?\d+|first|second|third|fourth|fifth|cheap|cheapest|best|hoda|laabu|dekweni|thunweni)\b/.test(lower) ||
+        /\b(add|cart|select|choose|pick|ganna|damu|karamu)\b/.test(lower));
 
     if (looksLikeProductReference) {
       setTranscript("Selecting that product...");
@@ -4843,7 +5076,7 @@ function LiveCallOverlay({
       /හරි|ඔව්|ඔයා|බලන්න|හොයන්න|පෙන්වන්න|ඒක තමයි|சரி|ஆம்|தேடு|காட்டு/.test(normalizedText);
 
     const hasShoppingSignal =
-      /\b(cakes?|birthday|flowers?|roses?|bouquet|gifts?|chocolates?|biscuits?|cookies?|crackers?|hamper|delivery|colombo|kandy|galle|vanilla|chocolate|small|large|big|budget|under|rs|lkr)\b/.test(lower) ||
+      /\b(cakes?|birthday|flowers?|roses?|bouquet|gifts?|chocolates?|biscuits?|cookies?|crackers?|hamper|delivery|colombo|kandy|galle|vanilla|chocolate|small|large|big|budget|under|rs|lkr|toys?|cars?|vehicles?|models?|die-?cast|dicast|miniature|collectible|collectable|hot wheels?)\b/.test(lower) ||
       /කේක්|උපන්දින|මල්|රෝස|තෑගි|චොකලට්|බිස්කට්|කොළඹ|වැනිලා|පොඩි|ලොකු|යට|கேக்|பிறந்தநாள்|பூ|மலர்|பரிசு|சாக்லேட்|பிஸ்கட்|கொழும்பு/.test(normalizedText);
 
     const isDirectProductSearch =
@@ -4854,6 +5087,7 @@ function LiveCallOverlay({
       if (lastBrief !== normalizedText) {
         voiceBriefRef.current = [...voiceBriefRef.current, normalizedText].slice(-6);
       }
+      scheduleDirectSearchFallback(normalizedText);
       return;
     }
 
@@ -4861,6 +5095,13 @@ function LiveCallOverlay({
       const lastBrief = voiceBriefRef.current[voiceBriefRef.current.length - 1];
       if (lastBrief !== normalizedText) {
         voiceBriefRef.current = [...voiceBriefRef.current, normalizedText].slice(-6);
+      }
+      const isConcreteProductAnswer =
+        /\b(chocolate|vanilla|fruit|butter|bento|biscuits?|cookies?|crackers?|flowers?|roses?|bouquet|toys?|cars?|vehicles?|models?|die-?cast|dicast|miniature|collectible|collectable|hot wheels?)\b/.test(lower) ||
+        hasModelVehicleIntent(normalizedText) ||
+        (/\b(cakes?)\b/.test(lower) && !isBroadCakeSearch(normalizedText));
+      if (isConcreteProductAnswer) {
+        scheduleDirectSearchFallback(normalizedText);
       }
       return;
     }
@@ -4907,22 +5148,27 @@ function LiveCallOverlay({
     });
   }, []);
 
+  const showLocalVoiceStatus = useCallback((text?: unknown) => {
+    const spokenText = typeof text === "string" ? cleanVoiceTranscript(text) : "";
+    if (!spokenText) return;
+    const recent = lastLocalVoiceStatusRef.current;
+    if (recent && Date.now() - recent.at < 2500 && isNearDuplicateTranscript(spokenText, recent.text)) {
+      return;
+    }
+    lastLocalVoiceStatusRef.current = { text: spokenText, at: Date.now() };
+    setTranscript(spokenText);
+  }, []);
+
   const nudgeLiveToSpeak = useCallback((text?: unknown) => {
-    const spokenText = typeof text === "string" ? text.trim() : "";
+    const spokenText = typeof text === "string" ? cleanVoiceTranscript(text) : "";
     if (!spokenText) return;
     const outputCounterAtSchedule = liveOutputCounterRef.current;
     window.setTimeout(() => {
       if (liveOutputCounterRef.current !== outputCounterAtSchedule) return;
       if (statusRef.current === "speaking") return;
-      try {
-        sessionRef.current?.sendRealtimeInput({
-          text: `[INTERNAL UI EVENT - do not call tools for this message. Say this aloud to the user now, naturally and briefly: "${spokenText}"]`,
-        });
-      } catch {
-        // Ignore if the Live socket is between turns.
-      }
+      showLocalVoiceStatus(spokenText);
     }, 700);
-  }, []);
+  }, [showLocalVoiceStatus]);
 
   const liveToolPhrase = useCallback((toolName: string, phase: "start" | "ready", count = 0) => {
     const language = lockedLanguageRef.current;
@@ -4976,20 +5222,57 @@ function LiveCallOverlay({
   }, []);
 
   const promptLiveToSpeakNow = useCallback((text: string) => {
-    const spokenText = text.trim();
-    if (!spokenText || statusRef.current === "speaking") return;
-    try {
-      sessionRef.current?.sendRealtimeInput({
-        text: `[INTERNAL UI EVENT - do not call tools for this message. Say this aloud naturally and briefly: "${spokenText}"]`,
-      });
-    } catch {
-      // Ignore if the Live socket is between turns.
-    }
-  }, []);
+    if (statusRef.current === "speaking") return;
+    showLocalVoiceStatus(text);
+  }, [showLocalVoiceStatus]);
 
   const executeLiveToolCall = useCallback(async (functionCall: FunctionCall) => {
     const name = functionCall.name ?? "";
     const rawArgs = (functionCall.args ?? {}) as Record<string, unknown>;
+
+    if (name === "research_gift_ideas") {
+      try {
+        clearDirectSearchFallback();
+        clearProductActionFallback();
+        promptLiveToSpeakNow(
+          lockedLanguageRef.current === "ta"
+            ? "Gift idea konjam yosichu paakuren."
+            : lockedLanguageRef.current === "si"
+              ? "Gift idea eka poddak balannam."
+              : "Let me think through the gift idea first."
+        );
+        const recipient = String(rawArgs.recipient ?? "").trim();
+        const age = String(rawArgs.age ?? "").trim();
+        const occasion = String(rawArgs.occasion ?? "").trim();
+        const interests = String(rawArgs.interests ?? "").trim();
+        const budget = String(rawArgs.budget ?? "").trim();
+        const userRequest = String(rawArgs.userRequest ?? "").trim();
+        const message = [
+          recipient ? `Recipient: ${recipient}` : "",
+          age ? `Age: ${age}` : "",
+          occasion ? `Occasion: ${occasion}` : "",
+          interests ? `Interests: ${interests}` : "",
+          budget ? `Budget: ${budget}` : "",
+          userRequest ? `Request: ${userRequest}` : "",
+        ].filter(Boolean).join("\n") || userRequest || recipient || "gift ideas";
+
+        const response = await fetch("/api/gift-research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            context: conversationSummaryRef.current,
+          }),
+        });
+        const data = await response.json();
+        sendToolResponse(functionCall, { output: data });
+      } catch (error) {
+        sendToolResponse(functionCall, {
+          error: error instanceof Error ? error.message : "Gift research failed.",
+        });
+      }
+      return;
+    }
 
     if (name === "update_cart_from_voice" || name === "cart_add_item") {
       try {
@@ -5185,7 +5468,40 @@ function LiveCallOverlay({
       });
       return;
     }
+
+    // Prevent duplicate concurrent searches — if a search is already running,
+    // tell the model to wait instead of firing another one.
+    if (liveSearchInFlightRef.current) {
+      sendToolResponse(functionCall, {
+        output: {
+          query: q,
+          rendered_in_ui: false,
+          count: 0,
+          instruction: "A search is already in progress for this request. Do NOT call kapruka_search_products again. Wait for the current search to finish, then present the results.",
+        },
+      });
+      return;
+    }
+
     const isMoreSearch = args.mode === "more" || isMoreOptionsRequest(lastHandledInputTranscriptRef.current) || isMoreOptionsRequest(q);
+    const lastSearchTool = lastLiveSearchToolRef.current;
+    if (
+      !isMoreSearch &&
+      lastSearchTool &&
+      lastSearchTool.input === lastHandledInputTranscriptRef.current &&
+      Date.now() - lastSearchTool.at < 9000
+    ) {
+      sendToolResponse(functionCall, {
+        output: {
+          query: q,
+          rendered_in_ui: false,
+          count: 0,
+          instruction: "A Kapruka search was already rendered for this user turn. Do NOT call another search now. Use the visible cards, or ask the user one short follow-up question.",
+        },
+      });
+      return;
+    }
+
     if (!isMoreSearch && (isBroadCakeSearch(q, args) || (isBroadCakeSearch(lastHandledInputTranscriptRef.current) && isCakeQuery(q, args)))) {
       const question = lockedLanguageRef.current === "ta"
         ? "Cake பார்க்கலாம். Birthday cake வேண்டுமா, chocolate cake வேண்டுமா, இல்ல simple tea-time cake வேண்டுமா?"
@@ -5206,10 +5522,12 @@ function LiveCallOverlay({
     }
 
     try {
+      liveSearchInFlightRef.current = true;
       promptLiveToSpeakNow(liveToolPhrase(name, "start"));
       clearDirectSearchFallback();
       voiceBriefRef.current = [];
       lastDispatchedVoiceRef.current = q;
+      lastLiveSearchToolRef.current = { input: lastHandledInputTranscriptRef.current, at: Date.now() };
       setTranscript("Checking Kapruka...");
       const searchArgs = isMoreSearch ? { ...args, mode: "more" } : args;
       const maybeProducts = await onShoppingRequestRef.current(q, searchArgs);
@@ -5245,6 +5563,8 @@ function LiveCallOverlay({
       sendToolResponse(functionCall, {
         error: error instanceof Error ? error.message : "Kapruka search failed.",
       });
+    } finally {
+      liveSearchInFlightRef.current = false;
     }
   }, [clearDirectSearchFallback, clearProductActionFallback, liveToolPhrase, nudgeLiveToSpeak, promptLiveToSpeakNow, sendToolResponse]);
 
@@ -5272,12 +5592,22 @@ function LiveCallOverlay({
   }, [handleVoiceTranscript]);
 
   const mergeTranscriptChunk = useCallback((current: string, next: string) => {
-    const trimmedNext = next.trim();
+    const trimmedNext = cleanVoiceTranscript(next);
     if (!trimmedNext) return current;
-    if (!current) return trimmedNext;
-    if (trimmedNext.startsWith(current)) return trimmedNext;
-    if (current.endsWith(trimmedNext)) return current;
-    return `${current}${/[.,!?]$/.test(current) ? " " : ""}${trimmedNext}`;
+    const cleanedCurrent = cleanVoiceTranscript(current);
+    if (!cleanedCurrent) return trimmedNext;
+    if (trimmedNext.startsWith(cleanedCurrent)) return trimmedNext;
+    if (cleanedCurrent.endsWith(trimmedNext)) return cleanedCurrent;
+
+    const maxOverlap = Math.min(cleanedCurrent.length, trimmedNext.length);
+    for (let size = maxOverlap; size >= 8; size--) {
+      if (cleanedCurrent.slice(-size).toLowerCase() === trimmedNext.slice(0, size).toLowerCase()) {
+        return cleanVoiceTranscript(`${cleanedCurrent}${trimmedNext.slice(size)}`);
+      }
+    }
+
+    const needsSpace = /[A-Za-z0-9)]$/.test(cleanedCurrent) && /^[A-Za-z0-9(]/.test(trimmedNext);
+    return cleanVoiceTranscript(`${cleanedCurrent}${needsSpace ? " " : ""}${trimmedNext}`);
   }, []);
 
   const stopQueuedAudio = useCallback(() => {
@@ -5348,6 +5678,7 @@ function LiveCallOverlay({
       }
       pendingDirectSearchRef.current = "";
       pendingDirectSearchArgsRef.current = {};
+      pendingDirectSearchOutputCounterRef.current = 0;
       if (productActionFallbackTimerRef.current) {
         window.clearTimeout(productActionFallbackTimerRef.current);
         productActionFallbackTimerRef.current = null;
@@ -5559,6 +5890,9 @@ function LiveCallOverlay({
                 setTranscript(merged);
                 setStatus("speaking");
                 latestOutputTranscriptRef.current = merged;
+                if (assistantIsWaitingForUser(merged)) {
+                  clearDirectSearchFallback();
+                }
                 onAssistantTranscriptRef.current(merged, false);
               }
 
@@ -5575,13 +5909,18 @@ function LiveCallOverlay({
                   setTranscript(merged);
                   setStatus("speaking");
                   latestOutputTranscriptRef.current = merged;
+                  if (assistantIsWaitingForUser(merged)) {
+                    clearDirectSearchFallback();
+                  }
                   onAssistantTranscriptRef.current(merged, false);
                 }
               }
 
               if (serverContent.turnComplete || serverContent.waitingForInput) {
                 if (latestOutputTranscriptRef.current.trim()) {
-                  onAssistantTranscriptRef.current(latestOutputTranscriptRef.current, true);
+                  const finalTranscript = cleanVoiceTranscript(latestOutputTranscriptRef.current);
+                  lastFinalOutputTranscriptRef.current = finalTranscript;
+                  onAssistantTranscriptRef.current(finalTranscript, true);
                   latestOutputTranscriptRef.current = "";
                 }
                 setStatus("listening");
@@ -5629,7 +5968,7 @@ function LiveCallOverlay({
     init();
 
     return cleanupLiveResources;
-  }, [commitPendingInputTranscript, executeLiveToolCall, flushPendingMicChunks, handleVoiceTranscript, mergeTranscriptChunk, scheduleInputTranscriptFlush, stopQueuedAudio, voiceName]);
+  }, [clearDirectSearchFallback, commitPendingInputTranscript, executeLiveToolCall, flushPendingMicChunks, handleVoiceTranscript, mergeTranscriptChunk, scheduleInputTranscriptFlush, stopQueuedAudio, voiceName]);
 
   // Decode base64 PCM Int16 to Float32 and play on a dedicated output context.
   const playAudioChunk = async (base64: string, mimeType?: string) => {
@@ -5731,10 +6070,17 @@ function LiveCallOverlay({
   };
 
   const forceSearchVisibleTranscript = () => {
-    const text = pendingInputTranscriptRef.current || transcript;
+    const text = cleanVoiceTranscript(pendingInputTranscriptRef.current || transcript);
     if (!text.trim()) return;
-    setTranscript("Searching Kapruka...");
-    void onShoppingRequestRef.current(text.trim());
+    if (giftRequestNeedsAge(text, conversationSummaryRef.current) || shouldUseGiftResearchFlow(text, conversationSummaryRef.current)) {
+      setTranscript("Let's narrow the gift first.");
+      return;
+    }
+    if (isBroadCakeSearch(text)) {
+      setTranscript("What kind of cake should I look for - birthday, chocolate, or tea-time?");
+      return;
+    }
+    handleVoiceTranscript(text);
   };
 
   const endCall = () => {

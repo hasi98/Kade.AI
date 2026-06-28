@@ -57,6 +57,41 @@ type LiveTokenContext = {
 
 const liveTools: FunctionDeclaration[] = [
   {
+    name: "research_gift_ideas",
+    description:
+      "Privately research current gift categories using Google Search grounding before searching Kapruka. Use this for gift advice involving a recipient profile such as girl, boy, girlfriend, boyfriend, daughter, son, kid, teen, wife, husband, parent, or friend. Do not call this until age is known for girl/boy/gf/bf/child/teen style recipients. If age is missing, ask the age first instead of calling any tool.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        recipient: {
+          type: Type.STRING,
+          description: "Recipient relationship, e.g. girlfriend, 8 year old boy, wife, friend.",
+        },
+        age: {
+          type: Type.STRING,
+          description: "Known age or age range. Required for girl/boy/gf/bf/child/teen style gift requests.",
+        },
+        occasion: {
+          type: Type.STRING,
+          description: "Occasion if known, e.g. birthday, anniversary, apology.",
+        },
+        interests: {
+          type: Type.STRING,
+          description: "Known interests, personality, tastes, dislikes, or preferences.",
+        },
+        budget: {
+          type: Type.STRING,
+          description: "Budget in LKR if known.",
+        },
+        userRequest: {
+          type: Type.STRING,
+          description: "The user's latest request in their words.",
+        },
+      },
+      required: ["recipient", "userRequest"],
+    },
+  },
+  {
     name: "kapruka_search_products",
     description:
       "Search live Kapruka products and render product cards in the Kade UI. Call this whenever the user asks to show, find, search, browse, see products, more options, another type, different options, or once you have enough details to make a useful recommendation. Current visible products are context only; they never limit you from searching again. Do not claim products are visible until this function returns.",
@@ -65,7 +100,7 @@ const liveTools: FunctionDeclaration[] = [
       properties: {
         q: {
           type: Type.STRING,
-          description: "Specific Kapruka search query, e.g. 'chocolate cake', 'red roses', 'self care hamper'.",
+          description: "Specific Kapruka search query, e.g. 'chocolate cake', 'red roses', 'self care hamper', 'diecast model car'.",
         },
         category: {
           type: Type.STRING,
@@ -274,7 +309,7 @@ If locked language is Sinhala/Singlish, use Sinhala/Singlish.
 If locked language is Tamil/Tanglish, use Tamil/Tanglish.
 
 TRANSCRIPT:
-Every response you give appears as text in the chat UI at the same time. Keep responses concise for voice, but complete enough to read naturally.
+Meaningful customer-facing responses appear in the chat UI, but short tool/status filler may stay only in the voice dock. Keep responses concise for voice. Do not create extra filler just to fill the chat.
 
 PRODUCT REFERENCES:
 When products are visible, refer to them by number and name. If the user says "number two", "second one", "dekweni eka", "cheap one", or a partial product name, treat that as referring to the visible products below.
@@ -293,8 +328,15 @@ ${history}
 
 SHOPPING FLOW IN VOICE:
 - Never disconnect or pause while searching, checking delivery, or cart operations happen in the UI.
-- Never go silent while a tool is running. If you are waiting for Kapruka search, delivery, order, or tracking results, say one short natural line in the locked language such as "Let me search Kapruka for that", "Delivery availability check කරනවා", or "Order setup பண்ணுறேன்". Keep it natural, not scripted.
+- Never go silent while a tool is running. If you are waiting for gift research, Kapruka search, delivery, order, or tracking results, say one short natural line in the locked language such as "Let me think through the gift idea", "Let me search Kapruka for that", "Delivery availability check කරනවා", or "Order setup பண்ணுறேன்". Keep it natural, not scripted.
 - When tool results arrive, transition naturally in the locked language. For product results, briefly say that options are visible on screen. If there are no results, say the exact item was not found and ask one short alternative question. Do not retry the same tool call.
+- AGE-FIRST GIFT RULE: If the user asks for a gift for a girl, boy, girlfriend, boyfriend, daughter, son, kid, child, teen, wife, or husband and age is not known, ask only their age first. Do not call kapruka_search_products. Do not call research_gift_ideas. Do not suggest product categories yet.
+- Once age is known for that gift recipient, call research_gift_ideas before Kapruka unless the user already gave a very direct product request like "show chocolate cakes" or "find biscuits". Use the research result privately to pick concrete Kapruka search terms, then call kapruka_search_products once. Do not mention Google or research to the user.
+- If research_gift_ideas returns NEED_PROFILE, ask that one profiling question and wait. Do not search Kapruka yet.
+- Do not wait for the user to say "okay" after they have already given enough intent. A clear product/category, or a gift recipient with age plus a specific interest/category, is permission to search.
+- Examples that should search without another confirmation: "he's 21 and likes small cars", "find model cars", "she is 24 and likes skincare", "show me biscuits", "look for more chocolates".
+- If the user says "small cars", "toy cars", "model cars", "mini cars", "diecast", "Hot Wheels", "car stuff", or "collectible cars", infer "diecast model car" or "toy car" as the Kapruka search term.
+- Only ask "okay?" before cart changes, checkout/order placement, or when the request still lacks a useful product/category/profile.
 - If the user asks to show/search/find/browse a specific product type, call kapruka_search_products. Do not just say you found items.
 - Broad cake requests need one question before searching. If the user only says "show cakes", "show me some cakes", or similar without flavor/occasion/budget, ask one natural question first: birthday cake, chocolate cake, or simple tea-time cake? Wait for the answer before calling kapruka_search_products.
 - Specific direct product searches are commands, not profiling conversations. If the user says "show me biscuits", "find flowers", "show chocolate cake", "birthday cake under 8000", or similar, do not ask what flavor/type/preference they like after the search starts or after results appear. Show results, then ask them to pick a visible option by number/name/tap.

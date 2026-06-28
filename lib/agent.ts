@@ -55,6 +55,9 @@ export function extractSearchIntent(input: string) {
   const wantsFlowers = !flowerBlocked && hasFlowerMention(input);
   const wantsChocolate = /\b(chocolates?|choco|choko|soklet|ferrero|toblerone)\b/.test(lower) || SINHALA_CHOCOLATE_RE.test(input) || TAMIL_CHOCOLATE_RE.test(input);
   const wantsBiscuits = /\b(biscuits?|cookies?|crackers?|biskut|munchee|maliban|oreo)\b/.test(lower) || SINHALA_BISCUIT_RE.test(input) || TAMIL_BISCUIT_RE.test(input);
+  const wantsModelVehicle =
+    /\b(hot wheels?|die-?cast|dicast|miniature cars?|mini cars?|small cars?|toy cars?|model cars?|collect(?:ible|able) cars?|car stuff|vehicle models?|bike models?)\b/.test(lower) ||
+    (/\b(cars?|vehicles?|bikes?|motorbikes?|motorcycles?)\b/.test(lower) && /\b(model|models|toy|toys|small|mini|miniature|collect(?:ible|able)|die-?cast|dicast)\b/.test(lower));
   const wantsGift = /\b(gifts?|thagi|thaagi|parisu)\b/.test(lower) || SINHALA_GIFT_RE.test(input) || TAMIL_GIFT_RE.test(input);
 
   const category = wantsCake
@@ -78,6 +81,7 @@ export function extractSearchIntent(input: string) {
   if (wantsFlowers) q = "roses";
   if (wantsChocolate) q = "chocolate";
   if (wantsBiscuits) q = "biscuits";
+  if (wantsModelVehicle) q = "diecast model car";
   if (!wantsCake && !wantsChocolate && !wantsBiscuits && flowerBlocked && asksForEdibleGift(input)) {
     q = "chocolate";
   }

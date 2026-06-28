@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { asksForEdibleGift, assistantCopy, dislikesFlowers, extractSearchIntent } from "@/lib/agent";
+import { asksForEdibleGift, dislikesFlowers } from "@/lib/agent";
 import { KADE_COMPLEX_PROMPT } from "@/lib/complex";
 import { formatDeliveryResponse, normalizeDeliveryResult } from "@/lib/delivery";
 import { chatWithTools, quickComplexStarter, researchGiftIdeas } from "@/lib/gemini";
@@ -306,6 +306,76 @@ function isVagueGiftFollowUp(message: string) {
 
 function isUncertainFollowUp(message: string) {
   return /\b(idk|i don't know|i dont know|dont know|don't know|not sure|no idea|confused|hard to choose|how to find|help me decide)\b/i.test(message);
+}
+
+function isAgeGatedGiftContext(text: string) {
+  const lower = text.toLowerCase();
+  const hasGiftIntent =
+    /\b(gift|gifts|present|surprise|recommend|suggest|ideas?|what should|what would|would love|something nice|something special)\b/.test(lower) ||
+    /\b(show|find|search|send|buy|choose|pick)\b.*\b(gift|gifts|present|surprise)\b/.test(lower);
+  const hasAgeSensitiveRecipient =
+    /\b(girl|boy|girlfriend|gf|boyfriend|bf|daughter|son|kid|kids|child|children|teen|teenager|niece|nephew|wife|husband)\b/.test(lower);
+  return hasGiftIntent && hasAgeSensitiveRecipient;
+}
+
+function hasRecipientAge(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    /\b(?:age|aged|old|years? old|yrs? old|y\/o|yo)\s*(?:is|:)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:she|he|they|girl|boy|girlfriend|boyfriend|gf|bf|daughter|son|kid|child|wife|husband)\s*(?:is|'s|age is|aged)?\s*\d{1,2}\b/.test(lower) ||
+    /\b\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)\b/.test(lower)
+  );
+}
+
+function latestMessageIsAgeOnly(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return /^\d{1,2}$/.test(normalized) || /^\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)$/.test(normalized);
+}
+
+function ageQuestionForGift(message: string, history: Content[], language?: LockedLanguage) {
+  const context = `${historyText(history)}\n${message}`.toLowerCase();
+  const pronoun =
+    /\b(boy|boyfriend|bf|son|nephew|husband)\b/.test(context) ? "him" :
+    /\b(girl|girlfriend|gf|daughter|niece|wife)\b/.test(context) ? "her" :
+    "them";
+
+  if (language === "si") {
+    return pronoun === "him"
+      ? "Eyage age eka kiyada? Eka dannama gift eka hariyata choose karanna puluwan."
+      : pronoun === "her"
+        ? "Eyage age eka kiyada? Eka dannama gift eka hariyata choose karanna puluwan."
+        : "Eyage age eka kiyada? Eka dannama gift eka hariyata choose karanna puluwan.";
+  }
+  if (language === "ta") {
+    return pronoun === "him"
+      ? "Avanga age evlo roughly? Appo gift idea sariyaga narrow panna mudiyum."
+      : pronoun === "her"
+        ? "Avanga age evlo roughly? Appo gift idea sariyaga narrow panna mudiyum."
+        : "Avanga age evlo roughly? Appo gift idea sariyaga narrow panna mudiyum.";
+  }
+
+  return `Aww nice. How old is ${pronoun} roughly? Age matters a lot here, then I can find something that actually fits.`;
+}
+
+function recipientAgeGatePrecheck(message: string, history: Content[], language?: LockedLanguage) {
+  const previousContext = historyText(history);
+  const context = `${previousContext}\n${message}`;
+  if (!isAgeGatedGiftContext(context)) return null;
+  if (hasRecipientAge(context) || (isAgeGatedGiftContext(previousContext) && latestMessageIsAgeOnly(message))) return null;
+
+  return {
+    reply: ageQuestionForGift(message, history, language),
+    products: [],
+    delivery: null,
+    order: null,
+    label: "AI_RECOMMENDATION",
+    quickReplies: ["Under 10", "Teen", "Early 20s", "30+"],
+    model: "kade-age-gate",
+  };
+}
+
+function isRecipientGiftConversation(message: string, history: Content[]) {
+  return isAgeGatedGiftContext(`${historyText(history)}\n${message}`);
 }
 
 function isRecipientProfilingContext(history: Content[]) {
@@ -677,24 +747,6 @@ function orderCreatedReply(order: OrderCreatedMetadata, delivery: unknown) {
   return `Yesss! Order created!\n\nYour payment link is ready - prices are locked for 60 minutes so pay soon!\n\nOyata guarantee they're going to LOVE this. Delivery on ${date} to ${city}. You did good!`;
 }
 
-async function fallbackSearch(message: string) {
-  const intent = extractSearchIntent(message);
-  const result = await searchKaprukaProducts(message, {
-    limit: 8,
-    max_price: intent.max_price,
-  });
-
-  const products = result.results ?? [];
-  return {
-    reply: assistantCopy(message, products, intent.city),
-    products,
-    delivery: null,
-    order: null,
-    label: products.length ? "SEARCH_RESULT" : "AI_RECOMMENDATION",
-    model: "kapruka-fallback",
-  };
-}
-
 function parseVisionJson(text: string): VisionAnalysis {
   const cleaned = text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
   try {
@@ -999,14 +1051,21 @@ function shouldSendStarter(reply: string) {
   return (
     Boolean(trimmed) &&
     trimmed.length <= 260 &&
+    !/[?]\s*$/.test(trimmed) &&
     !/give me a second|suggesting anything random|think through this properly|flowers?|cakes?|chocolates?|products?|search|recommend|price|rs\.?/i.test(trimmed)
   );
 }
 
-async function precheckResponse(message: string, history: Content[], startedAt: number) {
+async function precheckResponse(message: string, history: Content[], startedAt: number, language?: LockedLanguage) {
   if (isSmallTalkOnly(message)) {
     logModelRoute("PRECHECK", "kade-smalltalk-precheck", startedAt);
     return smallTalkReply(message);
+  }
+
+  const ageGateReply = recipientAgeGatePrecheck(message, history, language);
+  if (ageGateReply) {
+    logModelRoute("PRECHECK", "kade-age-gate", startedAt);
+    return ageGateReply;
   }
 
   if (!hasEnoughInfoToSearch(message, history) && isRecipientProfilingContext(history) && isProfileOnlyAnswer(message)) {
@@ -1051,7 +1110,7 @@ async function routedChatResponse({
   startedAt: number;
   language?: LockedLanguage;
 }) {
-  const obviousComplex = hasComplexShoppingSignal(message ?? "");
+  const obviousComplex = hasComplexShoppingSignal(message ?? "") || isRecipientGiftConversation(message ?? "", history);
   const directSearchReady = hasEnoughInfoToSearch(message ?? "", history);
   const isComplex = !directSearchReady && (obviousComplex || await classifierPromise);
   const routeIntent = isComplex ? "COMPLEX" : "SIMPLE";
@@ -1077,11 +1136,6 @@ async function routedChatResponse({
   const delivery = extractDelivery(toolResults);
   const order = extractOrder(toolResults);
   const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
-
-  if (!isComplex && toolResults.length === 0 && isShoppingQuery(message)) {
-    const fallback = await fallbackSearch(message);
-    return { ...fallback, routedModel: modelUsed, intent: routeIntent };
-  }
 
   let label = null;
   if (products.length > 0) label = "SEARCH_RESULT";
@@ -1135,14 +1189,14 @@ function streamChatResponse({
         const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sse(event, data)));
 
         try {
-          const precheck = await precheckResponse(message, history, startedAt);
+          const precheck = await precheckResponse(message, history, startedAt, language);
           if (precheck) {
             send("final", precheck);
             send("done", {});
             return;
           }
 
-          const obviousComplex = hasComplexShoppingSignal(message ?? "");
+          const obviousComplex = hasComplexShoppingSignal(message ?? "") || isRecipientGiftConversation(message ?? "", history);
           const directSearchReady = hasEnoughInfoToSearch(message ?? "", history);
           const isComplex = !directSearchReady && (obviousComplex || await classifierPromise);
 
@@ -1190,13 +1244,9 @@ function streamChatResponse({
             send("final", friendlyRateLimitResponse("COMPLEX", startedAt));
           } else {
             console.error("Chat stream error:", error);
-            try {
-              send("final", await fallbackSearch(message));
-            } catch {
-              send("error", {
-                reply: "I'm having trouble connecting right now. Please try again in a moment!",
-              });
-            }
+            send("error", {
+              reply: "I'm having trouble connecting right now. Please try again in a moment!",
+            });
           }
           send("done", {});
         } finally {
@@ -1215,7 +1265,6 @@ function streamChatResponse({
 }
 
 export async function POST(req: NextRequest) {
-  let messageForFallback = "";
   const startedAt = Date.now();
   let routeIntent = "SIMPLE";
 
@@ -1229,8 +1278,6 @@ export async function POST(req: NextRequest) {
       orderDraft?: { stage?: string };
       language?: LockedLanguage;
     };
-    messageForFallback = message || "audio message";
-
     const conversationHistory: Content[] = history ?? [];
 
     if (image?.base64 && image.mimeType) {
@@ -1264,10 +1311,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const precheck = await precheckResponse(message, conversationHistory, startedAt);
+    const precheck = await precheckResponse(message, conversationHistory, startedAt, language);
     if (precheck) return Response.json(precheck);
 
-    const obviousComplex = hasComplexShoppingSignal(message ?? "");
+    const obviousComplex = hasComplexShoppingSignal(message ?? "") || isRecipientGiftConversation(message ?? "", conversationHistory);
     const directSearchReady = hasEnoughInfoToSearch(message ?? "", conversationHistory);
     const isComplex = !directSearchReady && (obviousComplex || await classifierPromise);
     routeIntent = isComplex ? "COMPLEX" : "SIMPLE";
@@ -1293,11 +1340,6 @@ export async function POST(req: NextRequest) {
     const delivery = extractDelivery(toolResults);
     const order = extractOrder(toolResults);
     const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
-
-    if (!isComplex && toolResults.length === 0 && isShoppingQuery(message)) {
-      const fallback = await fallbackSearch(message);
-      return Response.json({ ...fallback, routedModel: modelUsed });
-    }
 
     // Determine label based on what tools were called
     let label = null;
@@ -1328,14 +1370,6 @@ export async function POST(req: NextRequest) {
     }
 
     console.error("Chat API error:", error);
-    try {
-      if (messageForFallback) {
-        return Response.json(await fallbackSearch(messageForFallback));
-      }
-    } catch (fallbackError) {
-      console.error("Chat fallback error:", fallbackError);
-    }
-
     return Response.json(
       {
         reply:

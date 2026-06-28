@@ -184,8 +184,16 @@ const CART_STORAGE_KEY = "kade-ai-cart";
 const RECENT_CARTS_STORAGE_KEY = "kade-ai-recent-carts";
 const CHAT_SESSIONS_STORAGE_KEY = "kade-ai-chat-sessions";
 const DELIVERY_CITY_STORAGE_KEY = "kade_delivery_city";
+const USER_LANGUAGE_STORAGE_KEY = "kade-ai-preferred-language";
+const VOICE_GENDER_STORAGE_KEY = "kade-ai-voice-gender";
+const AUTH_USER_STORAGE_KEY = "kade-ai-auth-user";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 const ACTIVE_CHAT_COOKIE = "kade_active_chat";
 const CHAT_SESSION_LIMIT = 12;
+const VOICE_BY_GENDER = {
+  female: "Aoede",
+  male: "Orus",
+} as const;
 const POPULAR_DELIVERY_CITIES = [
   "Colombo 01",
   "Colombo 02",
@@ -257,6 +265,37 @@ type ChatApiPayload = {
 };
 
 type ConversationLanguage = "en" | "si" | "ta";
+type VoiceGender = keyof typeof VOICE_BY_GENDER;
+type AuthUser = {
+  mode: "guest" | "google";
+  name: string;
+  email?: string;
+  picture?: string;
+};
+
+type GoogleCredentialPayload = {
+  name?: string;
+  given_name?: string;
+  email?: string;
+  picture?: string;
+};
+
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+          renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+        };
+      };
+    };
+  }
+}
 
 type CartAction = {
   action: "add" | "remove" | "set_quantity" | "clear";
@@ -1063,6 +1102,27 @@ function sanitizeMessages(messages: ChatMessage[]) {
     .filter(hasVisibleMessageContent);
 }
 
+function messagesMatch(a: ChatMessage[] = [], b: ChatMessage[] = []) {
+  return JSON.stringify(sanitizeMessages(a)) === JSON.stringify(sanitizeMessages(b));
+}
+
+function decodeGoogleCredential(credential: string): GoogleCredentialPayload | null {
+  try {
+    const payload = credential.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes)) as GoogleCredentialPayload;
+  } catch {
+    return null;
+  }
+}
+
+function authInitial(name?: string) {
+  return (name?.trim()?.[0] ?? "G").toUpperCase();
+}
+
 function sortChatSessions(sessions: ChatSession[]) {
   return [...sessions].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -1156,6 +1216,13 @@ function HomeExperience() {
   const [conversationLanguage, setConversationLanguage] = useState<ConversationLanguage>("en");
   const conversationLanguageRef = useRef<ConversationLanguage>("en");
   const conversationLanguageLockedRef = useRef(false);
+  const [preferredLanguage, setPreferredLanguage] = useState<ConversationLanguage>("en");
+  const [voiceGender, setVoiceGender] = useState<VoiceGender>("female");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [googleScriptReady, setGoogleScriptReady] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState("");
   const [openChatMenuId, setOpenChatMenuId] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingResult, setTrackingResult] = useState<Record<string, unknown> | null>(null);
@@ -1173,6 +1240,7 @@ function HomeExperience() {
   const inputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
   const imagePreviewUrlsRef = useRef<string[]>([]);
   const chatBusy = loading || Boolean(typingMessageId);
   const chatSessionsRef = useRef<ChatSession[]>([]);
@@ -1215,6 +1283,71 @@ function HomeExperience() {
       });
     }
     setShowLiveCall(true);
+  }, []);
+
+  const applyPreferredLanguage = useCallback((language: ConversationLanguage) => {
+    setPreferredLanguage(language);
+    conversationLanguageRef.current = language;
+    conversationLanguageLockedRef.current = true;
+    setConversationLanguage(language);
+    try {
+      window.localStorage.setItem(USER_LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // Ignore local storage quota errors.
+    }
+  }, []);
+
+  const applyVoiceGender = useCallback((gender: VoiceGender) => {
+    setVoiceGender(gender);
+    try {
+      window.localStorage.setItem(VOICE_GENDER_STORAGE_KEY, gender);
+    } catch {
+      // Ignore local storage quota errors.
+    }
+  }, []);
+
+  const persistAuthUser = useCallback((user: AuthUser) => {
+    setAuthUser(user);
+    setAuthModalOpen(false);
+    setGoogleAuthError("");
+    try {
+      window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+    } catch {
+      // Ignore local storage quota errors.
+    }
+  }, []);
+
+  const continueAsGuest = useCallback(() => {
+    persistAuthUser({ mode: "guest", name: "Guest" });
+  }, [persistAuthUser]);
+
+  const signOutToGuest = useCallback(() => {
+    persistAuthUser({ mode: "guest", name: "Guest" });
+  }, [persistAuthUser]);
+
+  const handleGoogleCredential = useCallback((response: GoogleCredentialResponse) => {
+    if (!response.credential) {
+      setGoogleAuthError("Google did not return a sign-in token. Try again or continue as guest.");
+      return;
+    }
+
+    const payload = decodeGoogleCredential(response.credential);
+    if (!payload) {
+      setGoogleAuthError("Could not read the Google profile. Guest mode still works.");
+      return;
+    }
+
+    persistAuthUser({
+      mode: "google",
+      name: payload.name || payload.given_name || "Google user",
+      email: payload.email,
+      picture: payload.picture,
+    });
+  }, [persistAuthUser]);
+
+  const openAuthChooser = useCallback(() => {
+    setSettingsOpen(false);
+    setAuthModalOpen(true);
   }, []);
 
   const syncShownProducts = useCallback((products: Product[]) => {
@@ -1277,9 +1410,9 @@ function HomeExperience() {
     setActiveChatId(id);
     setTemporaryChat(temporary);
     setMessages(freshMessages);
-    conversationLanguageRef.current = "en";
-    conversationLanguageLockedRef.current = false;
-    setConversationLanguage("en");
+    conversationLanguageRef.current = preferredLanguage;
+    conversationLanguageLockedRef.current = preferredLanguage !== "en";
+    setConversationLanguage(preferredLanguage);
     resetConversationSurface();
     setOrderDraft(null);
     setOrderResult(null);
@@ -1294,15 +1427,16 @@ function HomeExperience() {
       createdAt,
       updatedAt: createdAt,
       messages: freshMessages,
+      language: preferredLanguage !== "en" ? preferredLanguage : undefined,
     };
     persistChatSessions([session, ...chatSessionsRef.current]);
     writeCookie(ACTIVE_CHAT_COOKIE, id);
-  }, [persistChatSessions, resetConversationSurface]);
+  }, [persistChatSessions, preferredLanguage, resetConversationSurface]);
 
   const toggleChatPin = useCallback((sessionId: string) => {
     persistChatSessions(
       chatSessionsRef.current.map((session) =>
-        session.id === sessionId ? { ...session, pinned: !session.pinned, updatedAt: new Date().toISOString() } : session
+        session.id === sessionId ? { ...session, pinned: !session.pinned } : session
       )
     );
   }, [persistChatSessions]);
@@ -1312,7 +1446,7 @@ function HomeExperience() {
     if (!nextTitle) return;
     persistChatSessions(
       chatSessionsRef.current.map((entry) =>
-        entry.id === session.id ? { ...entry, title: nextTitle, updatedAt: new Date().toISOString(), customTitle: true } : entry
+        entry.id === session.id ? { ...entry, title: nextTitle, customTitle: true } : entry
       )
     );
   }, [persistChatSessions]);
@@ -1384,10 +1518,95 @@ function HomeExperience() {
   }, [darkMode]);
 
   useEffect(() => {
+    try {
+      const savedAuth = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
+      if (savedAuth) {
+        const parsedAuth = JSON.parse(savedAuth) as AuthUser;
+        if (parsedAuth?.mode === "guest" || parsedAuth?.mode === "google") {
+          setAuthUser(parsedAuth);
+        } else {
+          setAuthModalOpen(true);
+        }
+      } else {
+        setAuthModalOpen(true);
+      }
+
+      const savedLanguage = window.localStorage.getItem(USER_LANGUAGE_STORAGE_KEY);
+      if (savedLanguage === "en" || savedLanguage === "si" || savedLanguage === "ta") {
+        setPreferredLanguage(savedLanguage);
+      }
+
+      const savedVoiceGender = window.localStorage.getItem(VOICE_GENDER_STORAGE_KEY);
+      if (savedVoiceGender === "female" || savedVoiceGender === "male") {
+        setVoiceGender(savedVoiceGender);
+      }
+    } catch {
+      // Ignore local storage errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    if (window.google?.accounts?.id) {
+      setGoogleScriptReady(true);
+      return;
+    }
+
+    const existingScript = document.getElementById("google-identity-services");
+    if (existingScript) {
+      existingScript.addEventListener("load", () => setGoogleScriptReady(true), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "google-identity-services";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleScriptReady(true);
+    script.onerror = () => setGoogleAuthError("Google sign-in could not load. Guest mode is available.");
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!authModalOpen || !GOOGLE_CLIENT_ID || !googleScriptReady || !googleButtonRef.current || !window.google?.accounts?.id) return;
+
+    googleButtonRef.current.innerHTML = "";
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+    });
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: "outline",
+      size: "large",
+      type: "standard",
+      shape: "pill",
+      text: "continue_with",
+      width: 320,
+    });
+  }, [authModalOpen, googleScriptReady, handleGoogleCredential]);
+
+  useEffect(() => {
     if (cart.length === 0) {
       setCartOpen(false);
     }
   }, [cart.length]);
+
+  useEffect(() => {
+    if (!openChatMenuId) return;
+    const closeMenu = () => setOpenChatMenuId(null);
+    window.addEventListener("pointerdown", closeMenu);
+    return () => window.removeEventListener("pointerdown", closeMenu);
+  }, [openChatMenuId]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [settingsOpen]);
 
   useEffect(() => {
     chatSessionsRef.current = chatSessions;
@@ -1495,15 +1714,27 @@ function HomeExperience() {
     try {
       const now = new Date().toISOString();
       const existing = chatSessionsRef.current.find((session) => session.id === activeChatId);
+      const sanitizedMessages = sanitizeMessages(messages);
+      const nextTitle = existing?.customTitle ? existing.title : chatTitle(messages);
+      const nextLanguage = conversationLanguageLockedRef.current ? conversationLanguageRef.current : existing?.language;
+      const messagesChanged = !existing || !messagesMatch(existing.messages, sanitizedMessages);
+      const titleChanged = existing ? existing.title !== nextTitle : true;
+      const languageChanged = existing ? existing.language !== nextLanguage : Boolean(nextLanguage);
+
+      if (existing && !messagesChanged && !titleChanged && !languageChanged) {
+        writeCookie(ACTIVE_CHAT_COOKIE, activeChatId);
+        return;
+      }
+
       const snapshot: ChatSession = {
         id: activeChatId,
-        title: existing?.customTitle ? existing.title : chatTitle(messages),
+        title: nextTitle,
         createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-        messages: sanitizeMessages(messages),
+        updatedAt: messagesChanged ? now : existing?.updatedAt ?? now,
+        messages: sanitizedMessages,
         pinned: existing?.pinned,
         customTitle: existing?.customTitle,
-        language: conversationLanguageLockedRef.current ? conversationLanguageRef.current : existing?.language,
+        language: nextLanguage,
       };
       const nextSessions = sortChatSessions([
         snapshot,
@@ -3801,6 +4032,8 @@ function HomeExperience() {
     typeof order?.pay_url === "string" ? order.pay_url :
     typeof order?.payment_url === "string" ? order.payment_url :
     null;
+  const profileName = authUser?.name ?? "Guest";
+  const profileLabel = authUser?.mode === "google" ? (authUser.email ?? "Google account") : "Guest mode";
 
   return (
     <main
@@ -3816,7 +4049,7 @@ function HomeExperience() {
         <div className={styles.sidebarTop}>
           <div className={styles.sidebarBrand}>
             <div className={styles.sidebarLogo}>
-              <ShoppingBag size={18} />
+              <img src="/logo.png" alt="Kade AI" />
             </div>
             <strong><span>Kade</span> <em>AI</em></strong>
           </div>
@@ -3864,8 +4097,9 @@ function HomeExperience() {
               >
                 <MessageCircle size={15} />
                 <span>{session.title}</span>
+                {session.pinned && <Pin size={12} className={styles.sidebarPinnedMarker} />}
               </button>
-              <div className={styles.sidebarChatMenu}>
+              <div className={styles.sidebarChatMenu} onPointerDown={(event) => event.stopPropagation()}>
                 <button
                   type="button"
                   aria-label="Chat actions"
@@ -3917,8 +4151,9 @@ function HomeExperience() {
                   >
                     <MessageCircle size={15} />
                     <span>{session.title}</span>
+                    {session.pinned && <Pin size={12} className={styles.sidebarPinnedMarker} />}
                   </button>
-                  <div className={styles.sidebarChatMenu}>
+                  <div className={styles.sidebarChatMenu} onPointerDown={(event) => event.stopPropagation()}>
                     <button
                       type="button"
                       aria-label="Chat actions"
@@ -3953,16 +4188,175 @@ function HomeExperience() {
         </div>
 
         <div className={styles.sidebarUser}>
-          <div className={styles.sidebarAvatar}>H</div>
-          <div>
-            <strong>Hasith</strong>
-            <span>Challenge build</span>
+          <div className={styles.sidebarAvatar}>
+            {authUser?.picture ? (
+              <img src={authUser.picture} alt="" referrerPolicy="no-referrer" />
+            ) : (
+              authInitial(profileName)
+            )}
           </div>
-          <button aria-label="Settings">
+          <div>
+            <strong>{profileName}</strong>
+            <span>{profileLabel}</span>
+          </div>
+          <button type="button" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
             <Settings size={16} />
           </button>
         </div>
       </aside>
+
+      {authModalOpen && (
+        <div
+          className={styles.authOverlay}
+          onPointerDown={() => {
+            if (authUser) setAuthModalOpen(false);
+          }}
+          role="presentation"
+        >
+          <section
+            className={styles.authDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-title"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {authUser && (
+              <button className={styles.authClose} type="button" aria-label="Close sign in" onClick={() => setAuthModalOpen(false)}>
+                <X size={18} />
+              </button>
+            )}
+            <div className={styles.authLogo}>
+              <img src="/logo.png" alt="Kade AI" />
+            </div>
+            <div className={styles.authIntro}>
+              <span>Kapruka shopping desk</span>
+              <h2 id="auth-title">Start shopping your way</h2>
+              <p>Use Kade instantly as a guest, or sign in with Google only if you want your profile shown here.</p>
+            </div>
+
+            <button className={styles.authGuestButton} type="button" onClick={continueAsGuest}>
+              <User size={18} />
+              <span>Continue as guest</span>
+              <small>No account needed</small>
+            </button>
+
+            <div className={styles.authDivider}>
+              <span>or</span>
+            </div>
+
+            <div className={styles.authGoogleBox}>
+              {GOOGLE_CLIENT_ID ? (
+                <>
+                  <div ref={googleButtonRef} className={styles.googleButtonMount}>
+                    {!googleScriptReady && <span>Loading Google sign-in...</span>}
+                  </div>
+                  <p>Optional - shopping still works without signing in.</p>
+                </>
+              ) : (
+                <div className={styles.authGoogleSetup}>
+                  Add <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to enable Google sign-in.
+                </div>
+              )}
+            </div>
+
+            {googleAuthError && <p className={styles.authError}>{googleAuthError}</p>}
+          </section>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div
+          className={styles.settingsOverlay}
+          onPointerDown={() => setSettingsOpen(false)}
+          role="presentation"
+        >
+          <section
+            className={styles.settingsDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className={styles.settingsHeader}>
+              <div>
+                <span>Kade AI</span>
+                <h2 id="settings-title">Settings</h2>
+              </div>
+              <button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className={styles.settingsSection}>
+              <div>
+                <h3>Account</h3>
+                <p>{authUser?.mode === "google" ? `Signed in as ${profileName}` : "Using guest mode."}</p>
+              </div>
+              <div className={styles.settingsAccountActions}>
+                {authUser?.mode === "google" ? (
+                  <>
+                    <button className={styles.settingsWideButton} type="button" onClick={openAuthChooser}>
+                      Switch account
+                    </button>
+                    <button className={clsx(styles.settingsWideButton, styles.settingsDangerButton)} type="button" onClick={signOutToGuest}>
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <button className={styles.settingsWideButton} type="button" onClick={openAuthChooser}>
+                    Sign in with Google
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.settingsSection}>
+              <div>
+                <h3>Language</h3>
+                <p>Choose the default chat language.</p>
+              </div>
+              <div className={styles.settingsOptionGrid}>
+                {[
+                  { value: "en", label: "English" },
+                  { value: "si", label: "Sinhala" },
+                  { value: "ta", label: "Tamil" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={clsx(styles.settingsOption, preferredLanguage === option.value && styles.settingsOptionActive)}
+                    onClick={() => applyPreferredLanguage(option.value as ConversationLanguage)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.settingsSection}>
+              <div>
+                <h3>Voice</h3>
+                <p>Pick a simple voice profile for Gemini Live.</p>
+              </div>
+              <div className={styles.settingsOptionGrid}>
+                {[
+                  { value: "female", label: "Female" },
+                  { value: "male", label: "Male" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={clsx(styles.settingsOption, voiceGender === option.value && styles.settingsOptionActive)}
+                    onClick={() => applyVoiceGender(option.value as VoiceGender)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className={styles.chatPane}>
         <header className={styles.topbar}>
@@ -4208,6 +4602,7 @@ function HomeExperience() {
             cartItems={cart}
             conversationSummary={messages.filter((message) => message.id !== "welcome").slice(-10).map((message) => `${message.role}: ${message.text}`).join("\n")}
             lockedLanguage={conversationLanguage}
+            preferredVoiceName={VOICE_BY_GENDER[voiceGender]}
           />
         ) : (
           <form className={styles.composer} onSubmit={onSubmit}>
@@ -5009,6 +5404,7 @@ function LiveCallOverlay({
   cartItems,
   conversationSummary,
   lockedLanguage,
+  preferredVoiceName,
 }: {
   onClose: () => void;
   onShoppingRequest: (text: string, args?: VoiceSearchArgs) => Promise<Product[]> | Product[] | void;
@@ -5028,10 +5424,11 @@ function LiveCallOverlay({
   cartItems: CartItem[];
   conversationSummary: string;
   lockedLanguage: ConversationLanguage;
+  preferredVoiceName: (typeof LIVE_VOICES)[number];
 }) {
   const [status, setStatus] = useState<"connecting" | "listening" | "speaking">("connecting");
   const [muted, setMuted] = useState(false);
-  const [voiceName, setVoiceName] = useState<(typeof LIVE_VOICES)[number]>("Aoede");
+  const [voiceName, setVoiceName] = useState<(typeof LIVE_VOICES)[number]>(preferredVoiceName);
   const [transcript, setTranscript] = useState("Connecting to Kade AI...");
   const [audioDebug, setAudioDebug] = useState("audio waiting");
   const [checkoutStatus, setCheckoutStatus] = useState("");
@@ -5093,6 +5490,10 @@ function LiveCallOverlay({
   useEffect(() => {
     mutedRef.current = muted;
   }, [muted]);
+
+  useEffect(() => {
+    setVoiceName(preferredVoiceName);
+  }, [preferredVoiceName]);
 
   useEffect(() => {
     onCloseRef.current = onClose;

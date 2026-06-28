@@ -2632,6 +2632,13 @@ select.checkoutInput {
   background: rgba(245, 197, 24, 0.14);
   color: var(--kade-accent);
   border: 1px solid rgba(245, 197, 24, 0.28);
+  overflow: hidden;
+}
+
+.sidebarLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebarBrand strong {
@@ -2742,6 +2749,12 @@ select.checkoutInput {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebarPinnedMarker {
+  flex: 0 0 auto;
+  color: var(--kade-accent);
+  fill: var(--kade-accent);
 }
 
 .sidebarChatItem:hover {
@@ -2862,6 +2875,13 @@ select.checkoutInput {
   background: var(--kade-accent);
   color: var(--kade-text);
   font-weight: 900;
+  overflow: hidden;
+}
+
+.sidebarAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebarUser strong,
@@ -2882,7 +2902,345 @@ select.checkoutInput {
 }
 
 .sidebarUser button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
   color: var(--kade-sidebar-muted);
+}
+
+.sidebarUser button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--kade-sidebar-text);
+}
+
+.authOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(13, 9, 24, 0.58);
+  backdrop-filter: blur(16px);
+}
+
+.authDialog {
+  position: relative;
+  width: min(430px, 100%);
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(232, 222, 255, 0.22);
+  border-radius: 18px;
+  background: var(--kade-surface);
+  color: var(--kade-text);
+  box-shadow: 0 34px 90px rgba(13, 9, 24, 0.48);
+}
+
+.authClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--kade-text-secondary);
+  background: var(--kade-surface-secondary);
+}
+
+.authClose:hover {
+  color: var(--kade-text);
+  background: var(--kade-primary-light);
+}
+
+.authLogo {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(245, 197, 24, 0.13);
+  border: 1px solid rgba(245, 197, 24, 0.28);
+}
+
+.authLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.authIntro {
+  display: grid;
+  gap: 6px;
+}
+
+.authIntro span {
+  color: var(--kade-accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.authIntro h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.authIntro p {
+  margin: 0;
+  color: var(--kade-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.authGuestButton {
+  min-height: 60px;
+  padding: 11px 16px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: min-content min-content;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-content: center;
+  align-items: center;
+  justify-items: start;
+  border-radius: 14px;
+  background: var(--kade-accent);
+  color: #1a1a1a;
+  text-align: left;
+  box-shadow: 0 16px 36px rgba(245, 197, 24, 0.24);
+}
+
+.authGuestButton svg {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.authGuestButton span {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.authGuestButton small {
+  color: rgba(26, 26, 26, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.authGuestButton:hover {
+  background: var(--kade-accent-hover);
+  transform: translateY(-1px);
+}
+
+.authDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--kade-text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.authDivider::before,
+.authDivider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--kade-border);
+}
+
+.authGoogleBox {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+}
+
+.googleButtonMount {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+}
+
+.googleButtonMount span,
+.authGoogleBox p {
+  margin: 0;
+  color: var(--kade-text-secondary);
+  font-size: 12px;
+}
+
+.authGoogleSetup {
+  width: 100%;
+  padding: 13px;
+  border: 1px dashed var(--kade-border-strong);
+  border-radius: 12px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.authGoogleSetup code {
+  color: var(--kade-accent);
+  font-weight: 900;
+}
+
+.authError {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(13, 9, 24, 0.54);
+  backdrop-filter: blur(14px);
+}
+
+.settingsDialog {
+  width: min(440px, 100%);
+  padding: 18px;
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(232, 222, 255, 0.2);
+  border-radius: 14px;
+  background: var(--kade-surface);
+  color: var(--kade-text);
+  box-shadow: 0 28px 80px rgba(13, 9, 24, 0.42);
+}
+
+.settingsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.settingsHeader span {
+  display: block;
+  color: var(--kade-accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.settingsHeader h2 {
+  margin: 3px 0 0;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.settingsHeader button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--kade-text-secondary);
+  background: var(--kade-surface-secondary);
+}
+
+.settingsHeader button:hover {
+  color: var(--kade-text);
+  background: var(--kade-primary-light);
+}
+
+.settingsSection {
+  display: grid;
+  gap: 10px;
+}
+
+.settingsSection h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settingsSection p {
+  margin: 3px 0 0;
+  color: var(--kade-text-secondary);
+  font-size: 12px;
+}
+
+.settingsWideButton {
+  min-height: 40px;
+  border: 1px solid var(--kade-border);
+  border-radius: 10px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text);
+  font-weight: 900;
+}
+
+.settingsWideButton:hover {
+  border-color: var(--kade-primary);
+  background: var(--kade-primary-light);
+}
+
+.settingsAccountActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.settingsDangerButton {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.settingsDangerButton:hover {
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.52);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.settingsOptionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settingsSection:last-child .settingsOptionGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settingsOption {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--kade-border);
+  border-radius: 10px;
+  background: var(--kade-surface-secondary);
+  color: var(--kade-text-secondary);
+  font-weight: 900;
+}
+
+.settingsOption:hover {
+  border-color: var(--kade-border-strong);
+  color: var(--kade-text);
+}
+
+.settingsOptionActive {
+  border-color: var(--kade-primary);
+  color: var(--kade-text);
+  background: var(--kade-primary-light);
+  box-shadow: 0 0 0 2px rgba(123, 79, 208, 0.22);
 }
 
 .chatPane {

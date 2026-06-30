@@ -327,8 +327,29 @@ function stripInternalControlText(text: string) {
   return withoutBracketedControl.replace(/\s+/g, " ").trim();
 }
 
+const KAPRUKA_CHECKOUT_URL_RE = /https?:\/\/(?:www\.)?kapruka\.com\/tools\/continue_order\.jsp\?[^\s)]+/gi;
+
+function removePaymentLinksFromSpeech(text: string) {
+  return text
+    .replace(KAPRUKA_CHECKOUT_URL_RE, "the payment link button")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeAssistantText(text: string) {
+  return removePaymentLinksFromSpeech(text);
+}
+
+function isCheckoutUrlText(text: string) {
+  return /^https?:\/\/(?:www\.)?kapruka\.com\/tools\/continue_order\.jsp\?/i.test(text);
+}
+
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 1020px)").matches;
+}
+
 function cleanVoiceTranscript(text: string) {
-  const safeText = stripInternalControlText(text);
+  const safeText = safeAssistantText(stripInternalControlText(text));
   if (!safeText) {
     return "";
   }
@@ -1080,7 +1101,7 @@ function normalizeOrderEditField(text: string) {
 function sanitizedMessageText(message: ChatMessage) {
   return message.source === "voice"
     ? cleanVoiceTranscript(message.text)
-    : stripInternalControlText(message.text);
+    : safeAssistantText(stripInternalControlText(message.text));
 }
 
 function hasVisibleMessageContent(message: ChatMessage) {
@@ -1503,6 +1524,10 @@ function HomeExperience() {
   useEffect(() => {
     const lastMessage = displayMessages[displayMessages.length - 1];
     if (!lastMessage) return;
+    if (lastMessage.isStreaming || typingMessageId || loading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      return;
+    }
     if (lastMessage.products?.length) {
       lastProductMessageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -1511,7 +1536,7 @@ function HomeExperience() {
       return;
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [displayMessages, loading]);
+  }, [displayMessages, loading, typingMessageId]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -2037,7 +2062,7 @@ function HomeExperience() {
         if (finalData?.products?.length && !selectedProduct) {
           setSelectedProduct({ product: finalData.products[0] });
           setRightTab("product");
-          setDetailOpen(true);
+          setDetailOpen(!isMobileViewport());
         }
       } catch {
         setMessages((prev) => [
@@ -2093,7 +2118,7 @@ function HomeExperience() {
     if (data.products?.length && !selectedProduct) {
       setSelectedProduct({ product: data.products[0] });
       setRightTab("product");
-      setDetailOpen(true);
+      setDetailOpen(!isMobileViewport());
     }
   }
 
@@ -2125,15 +2150,19 @@ function HomeExperience() {
     if (!normalizedText) return;
     const existingId = liveAssistantMessageIdRef.current;
     const suppressAsStatus = isVoiceStatusOnly(normalizedText);
+    const allowSearchStatusBubble =
+      !final &&
+      /kapruka|checking|search/i.test(normalizedText) &&
+      !/audio \d+ chunks?|test tone/i.test(normalizedText);
     const suppressAsProductChatter =
       Date.now() - lastVoiceProductsShownAtRef.current < 7000 &&
       isPostProductResultChatter(normalizedText);
 
-    if (!final && !existingId) {
+    if (!final && !existingId && !allowSearchStatusBubble) {
       return;
     }
 
-    if ((suppressAsStatus || suppressAsProductChatter) && (!existingId || final)) {
+    if (((suppressAsStatus && !allowSearchStatusBubble) || suppressAsProductChatter) && (!existingId || final)) {
       liveAssistantMessageIdRef.current = null;
       if (final) {
         voiceBridgeRef.current.handleAssistantText(normalizedText);
@@ -2359,7 +2388,7 @@ function HomeExperience() {
       if (products[0]) {
         setSelectedProduct({ product: products[0] });
         setRightTab("product");
-        setDetailOpen(true);
+        setDetailOpen(!isMobileViewport());
       }
       if (products.length) {
         lastVoiceProductsShownAtRef.current = Date.now();
@@ -2438,7 +2467,7 @@ function HomeExperience() {
         setSelectedProduct({ product: matched });
         prefetchProductDetail(matched.id);
         setRightTab("product");
-        setDetailOpen(true);
+        setDetailOpen(!isMobileViewport());
         voiceBridgeRef.current.updateGeminiContext(voiceSession.shownProducts, cart);
         if (/\b(add|cart|damu|danna|karamu|ganna)\b/i.test(text)) {
           addToCart(matched);
@@ -2714,7 +2743,7 @@ function HomeExperience() {
         ? "Okay, I have the details. Please check the order summary in the chat. Shall I create the order?"
         : undefined),
       ready_to_confirm: readyToConfirm,
-      checkout_url: draft.checkoutUrl,
+      payment_link_ready: Boolean(draft.checkoutUrl),
       order_ref: draft.orderRef,
       items: draft.items.map((item) => ({
         product_id: item.productId,
@@ -2784,8 +2813,7 @@ function HomeExperience() {
       };
     }
 
-    const draft = orderDraft;
-    if (!draft) {
+    if (!orderDraft) {
       beginOrderCollection();
       return {
         ok: false,
@@ -2794,16 +2822,18 @@ function HomeExperience() {
         ...orderToolState(draftFromCurrentCart()),
       };
     }
+    const draft = orderDraft.giftMessage === undefined ? { ...orderDraft, giftMessage: "" } : orderDraft;
 
     if (draft.stage === "complete" && draft.checkoutUrl) {
       return {
         ok: true,
         action,
-        checkout_url: draft.checkoutUrl,
         order_ref: draft.orderRef,
         grand_total: draft.grandTotal,
         expires_at: draft.expiresAt,
         already_created: true,
+        payment_link_ready: true,
+        instruction: "Do not read or say any raw URL. Tell the user to click the Open payment link button.",
       };
     }
 
@@ -2824,10 +2854,11 @@ function HomeExperience() {
           ok: true,
           action,
           say_next: "Yesss, the order is created. The payment link is ready now, and prices are locked for 60 minutes.",
-          checkout_url: created.checkoutUrl,
           order_ref: created.orderRef,
           grand_total: created.summary.grandTotal,
           expires_at: created.expiresAt,
+          payment_link_ready: true,
+          instruction: "Do not read or say any raw URL. Tell the user to click the Open payment link button.",
         }
       : { ok: false, action, error: "Order creation failed. The UI has the latest error." };
   }, [cart, checkout, city, deliveryDate, deliveryQuote, orderDraft, orderResult]);
@@ -3044,14 +3075,16 @@ function HomeExperience() {
   }
 
   function handleVoiceOrderReady(args: VoiceOrderReadyArgs = {}) {
-    const draft = orderDraft;
-    if (!draft) {
+    if (!orderDraft) {
       return {
         ok: false,
         error: "No order form is active.",
         say_next: "Aiyo, order form eka start wela na. Details tika collect karamu.",
       };
     }
+    const draft = orderDraft.giftMessage === undefined
+      ? { ...orderDraft, giftMessage: "" }
+      : orderDraft;
 
     const requiredMissing = [
       !draft.recipientName?.trim() ? "recipientName" : null,
@@ -3157,8 +3190,7 @@ function HomeExperience() {
       };
     }
 
-    const draft = orderDraft;
-    if (!draft) {
+    if (!orderDraft) {
       return {
         ok: false,
         error: "No order form is ready.",
@@ -3167,6 +3199,7 @@ function HomeExperience() {
           : "Aiyo, order form eka ready na. Details tika collect karamu.",
       };
     }
+    const draft = orderDraft.giftMessage === undefined ? { ...orderDraft, giftMessage: "" } : orderDraft;
 
     const missing = getMissingFields(draft);
     if (missing.length) {
@@ -3192,10 +3225,11 @@ function HomeExperience() {
 
     return {
       ok: true,
-      checkout_url: created.checkoutUrl,
       order_ref: created.orderRef,
       grand_total: created.summary.grandTotal,
       expires_at: created.expiresAt,
+      payment_link_ready: true,
+      instruction: "Do not read or say any raw URL. Tell the user to click the Open payment link button in the chat or order panel.",
       say_next: currentOrderLanguage() === "en"
         ? "Yesss, the order is created. The payment link is ready, and prices are locked for 60 minutes."
         : "Yesss, order eka haduwa! Payment link eka ready. Prices 60 minutes lock wela.",
@@ -3816,6 +3850,8 @@ function HomeExperience() {
         });
         clearOrderDraft();
         saveRecentCart();
+        setCart([]);
+        setCartOpen(false);
         const copy = orderCopy(currentOrderLanguage());
         addAssistantMessage(
           `${copy.orderCreated}\n\n${copy.paySoon}\n\n${copy.deliveryOn} ${formatOrderDate(placingDraft.deliveryDate)} ${copy.toCity} ${placingDraft.deliveryCity}. ${copy.didGood}`,
@@ -4040,7 +4076,7 @@ function HomeExperience() {
       className={clsx(
         styles.shell,
         mobileSidebarOpen && styles.sidebarOpen,
-        (selectedProduct || rightTab === "cart" || showCheckout || orderDraft) && styles.rightPanelActive,
+        ((selectedProduct && detailOpen) || rightTab === "cart" || showCheckout || orderDraft) && styles.rightPanelActive,
         !detailOpen && styles.detailCollapsed
       )}
     >
@@ -4525,8 +4561,13 @@ function HomeExperience() {
                         onSelect={() => {
                           setSelectedProduct({ product });
                           prefetchProductDetail(product.id);
-                          setDetailOpen(true);
                           setRightTab("product");
+                          if (isMobileViewport()) {
+                            setDetailOpen(false);
+                            setModalProduct(product);
+                            return;
+                          }
+                          setDetailOpen(true);
                         }}
                       />
                     ))}
@@ -4936,18 +4977,25 @@ function HomeExperience() {
 
 function MessageContent({ text }: { text: string }) {
   // Simple markdown: **bold**, split by newlines
-  const lines = text.split("\n");
+  const lines = stripInternalControlText(text).split("\n");
   return (
     <>
       {lines.map((line, i) => {
         if (!line.trim()) return <br key={i} />;
         // Bold
-        const parts = line.split(/(\*\*[^*]+\*\*)/g);
+        const parts = line.split(/(\*\*[^*]+\*\*|https?:\/\/[^\s)]+)/g);
         return (
           <p key={i}>
             {parts.map((part, j) => {
               if (part.startsWith("**") && part.endsWith("**")) {
                 return <strong key={j}>{part.slice(2, -2)}</strong>;
+              }
+              if (/^https?:\/\/[^\s)]+$/i.test(part)) {
+                return (
+                  <a key={j} href={part} target="_blank" rel="noreferrer">
+                    {isCheckoutUrlText(part) ? "Open payment link" : part}
+                  </a>
+                );
               }
               return <span key={j}>{part}</span>;
             })}
@@ -6109,7 +6157,9 @@ function LiveCallOverlay({
 
     try {
       liveSearchInFlightRef.current = true;
-      promptLiveToSpeakNow(liveToolPhrase(name, "start"));
+      const searchStartPhrase = liveToolPhrase(name, "start");
+      promptLiveToSpeakNow(searchStartPhrase);
+      onAssistantTranscriptRef.current(searchStartPhrase, false);
       clearDirectSearchFallback();
       voiceBriefRef.current = [];
       lastDispatchedVoiceRef.current = q;

@@ -1190,6 +1190,12 @@ function shouldSendStarter(reply: string) {
   );
 }
 
+function directSearchStarter(language?: LockedLanguage) {
+  if (language === "ta") return "சரி, Kaprukaல check பண்ணுறேன்.";
+  if (language === "si") return "හරි, Kapruka එකේ බලන්නම්.";
+  return "Sure, let me check Kapruka for that.";
+}
+
 async function precheckResponse(message: string, history: Content[], startedAt: number, language?: LockedLanguage) {
   if (isSmallTalkOnly(message)) {
     logModelRoute("PRECHECK", "kade-smalltalk-precheck", startedAt);
@@ -1367,6 +1373,13 @@ function streamChatResponse({
             }
             send("final", await finalPromise);
           } else {
+            if (directSearchReady) {
+              send("starter", {
+                reply: directSearchStarter(language),
+                model: MODELS.chat,
+                intent: "SIMPLE",
+              });
+            }
             send(
               "final",
               await routedChatResponse({

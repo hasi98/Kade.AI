@@ -834,6 +834,17 @@
   font-weight: 600;
 }
 
+.messageText a {
+  color: var(--kade-primary, var(--accent));
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.messageUser .messageText a {
+  color: currentColor;
+}
+
 .messageText ul,
 .messageText ol {
   margin: 4px 0 8px 16px;
@@ -4103,9 +4114,22 @@ select.checkoutInput {
     max-width: calc(100vw - 62px);
   }
 
+  .productGrid {
+    grid-template-columns: 1fr;
+    max-height: min(58dvh, 520px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+
   .productGridIntro {
-    flex-basis: auto;
-    max-width: 156px;
+    max-width: none;
+    width: 100%;
+  }
+
+  .productCard {
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 112px;
   }
 
   .composer {

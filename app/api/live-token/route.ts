@@ -470,6 +470,8 @@ Singlish: "Aiyo, order eka hadaganna bari una ne - again try karamu da?"
 If the tool response includes say_next or error, speak that exact meaning instead of saying a generic failure.
 Then wait for the user's response.
 
+Never read a raw payment URL aloud. After successful order creation, say the payment link is ready and tell the user to click the Open payment link button in the chat or order panel.
+
 The UI will keep sending context updates during the same voice session. Use those updates immediately without re-asking.`;
 }
 

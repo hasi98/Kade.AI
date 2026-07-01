@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Kade AI | Kapruka Shopping Concierge",
@@ -19,8 +20,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="theme-color" content="#FAFAF8" />
         <meta name="color-scheme" content="light dark" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <link rel="apple-touch-icon" href="/logo.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster position="bottom-center" richColors />
+      </body>
     </html>
   );
 }

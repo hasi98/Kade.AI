@@ -39,6 +39,8 @@ import {
   ZoomIn,
 } from "lucide-react";
 import clsx from "clsx";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { GoogleGenAI, Modality, type FunctionCall } from "@google/genai";
 import { CityInputPopup } from "@/components/CityInputPopup";
 import { DeliveryCard } from "@/components/DeliveryCard";
@@ -1273,6 +1275,26 @@ function HomeExperience() {
   const [detailOpen, setDetailOpen] = useState(true);
   const [rightTab, setRightTab] = useState<"product" | "cart" | "order">("product");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mcpLive, setMcpLive] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function check() {
+      try {
+        const res = await fetch("/api/mcp-status");
+        const data = await res.json();
+        if (mounted) setMcpLive(!!data.ok);
+      } catch (e) {
+        if (mounted) setMcpLive(false);
+      }
+    }
+    check();
+    const interval = setInterval(check, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [giftWrap, setGiftWrap] = useState(false);
   const [personalNote, setPersonalNote] = useState(false);
   const [city, setCity] = useState("Colombo 07");
@@ -1310,6 +1332,30 @@ function HomeExperience() {
   const [showImageSheet, setShowImageSheet] = useState(false);
   const [showDropZone, setShowDropZone] = useState(false);
   const [pendingImage, setPendingImage] = useState<PreparedImage | null>(null);
+
+  const seasonalSuggestions = useMemo(() => {
+    const month = new Date().getMonth();
+    const suggestions = [
+      { text: "Birthday cake under Rs. 5000", icon: Gift },
+      { text: "Corporate gift hamper", icon: Package },
+      { text: "Flowers for delivery today", icon: Sparkles },
+      { text: "Surprise gift for my girlfriend", icon: MessageCircle },
+    ];
+    if (month === 1) { // Feb
+      suggestions[0] = { text: "Valentine's roses and cakes", icon: Sparkles };
+      suggestions[3] = { text: "Romantic gift for my partner", icon: MessageCircle };
+    } else if (month === 3) { // April
+      suggestions[0] = { text: "Avurudu sweets and hampers", icon: Package };
+      suggestions[3] = { text: "Avurudu gifts for family", icon: Gift };
+    } else if (month === 4) { // May
+      suggestions[0] = { text: "Mother's Day special gifts", icon: Sparkles };
+      suggestions[3] = { text: "Flowers and cake for Mom", icon: Gift };
+    } else if (month === 11) { // Dec
+      suggestions[0] = { text: "Christmas hampers and cakes", icon: Package };
+      suggestions[3] = { text: "Christmas gifts for kids", icon: Gift };
+    }
+    return suggestions;
+  }, []);
 
   const [showLiveCall, setShowLiveCall] = useState(false);
   const closeLiveCall = useCallback(() => setShowLiveCall(false), []);
@@ -3377,7 +3423,7 @@ function HomeExperience() {
     const assistantId = crypto.randomUUID();
     const steps = [
       uiText("Analyzing image...", conversationLanguageRef.current),
-      uiText("Searching Kapruka...", conversationLanguageRef.current),
+      uiText("Thinking...", conversationLanguageRef.current),
       uiText("Found some matches!", conversationLanguageRef.current),
     ];
 
@@ -3446,6 +3492,7 @@ function HomeExperience() {
     setCartOpen(true);
     setRightTab("order");
     setDetailOpen(true);
+    toast.success(`Added ${product.name} to cart`);
     setCart((prev) => {
       const found = prev.find((item) => item.product.id === product.id);
       if (found) {
@@ -4155,8 +4202,15 @@ function HomeExperience() {
         }),
       });
       const createdOrder = await res.json();
-      setOrder(createdOrder);
-      saveRecentCart();
+      if (!res.ok) {
+        toast.error(`Order failed: ${createdOrder.error || 'Unknown error'}`);
+      } else {
+        toast.success("Order successfully created!");
+        setOrder(createdOrder);
+        saveRecentCart();
+      }
+    } catch (e) {
+      toast.error("Failed to connect to the server.");
     } finally {
       setBusyAction(null);
     }
@@ -4207,6 +4261,12 @@ function HomeExperience() {
         !detailOpen && styles.detailCollapsed
       )}
     >
+      {mobileSidebarOpen && (
+        <div 
+          className={styles.mobileSidebarOverlay} 
+          onClick={() => setMobileSidebarOpen(false)} 
+        />
+      )}
       {/* ═══ LEFT: Cart Sidebar ═══ */}
       <aside className={styles.cartSidebar}>
         <div className={styles.sidebarTop}>
@@ -4392,7 +4452,7 @@ function HomeExperience() {
               <img src="/logo.png" alt="Kade AI" />
             </div>
             <div className={styles.authIntro}>
-              <span>Kapruka shopping desk</span>
+              <span>{uiText("Kapruka shopping desk", preferredLanguage)}</span>
               <h2 id="auth-title">{uiText("Start shopping your way", preferredLanguage)}</h2>
               <p>{uiText("Use Kade instantly as a guest, or sign in with Google only if you want your profile shown here.", preferredLanguage)}</p>
             </div>
@@ -4482,9 +4542,7 @@ function HomeExperience() {
                 {[
                   { value: "en", label: "English" },
                   { value: "si", label: "Sinhala" },
-                  { value: "si-Latn", label: "Singlish" },
                   { value: "ta", label: "Tamil" },
-                  { value: "ta-Latn", label: "Tanglish" },
                 ].map((option) => (
                   <button
                     key={option.value}
@@ -4530,24 +4588,20 @@ function HomeExperience() {
               <Menu size={18} />
             </button>
             <div>
-              <h1>{temporaryChat ? "Temporary chat" : chatTitle(messages)}</h1>
-              <span>Kapruka shopping desk</span>
+              <h1>{temporaryChat ? uiText("Temporary chat", preferredLanguage) : chatTitle(messages)}</h1>
+              <span>{uiText("Kapruka shopping desk", preferredLanguage)}</span>
             </div>
           </div>
 
           <div className={styles.topbarActions}>
-            <div className={styles.livePill}>
-              <span />
-              MCP live
-            </div>
-            <button
-              className={clsx(styles.iconBtn, showLiveCall && styles.iconBtnActive)}
-              type="button"
-              aria-label="Voice mode"
-              onClick={openLiveCall}
-            >
-              <Mic size={18} />
-            </button>
+            <div 
+              className={styles.mcpStatusDot} 
+              style={{
+                backgroundColor: mcpLive ? "#10B981" : "#EF4444",
+                boxShadow: mcpLive ? "0 0 10px rgba(16, 185, 129, 0.6)" : "0 0 10px rgba(239, 68, 68, 0.6)"
+              }}
+              title={mcpLive ? "MCP Connected" : "MCP Disconnected"}
+            />
             <button 
               className={clsx(styles.iconBtn, styles.themeToggle)} 
               aria-label={darkMode ? 'Light mode' : 'Dark mode'}
@@ -4565,9 +4619,6 @@ function HomeExperience() {
             >
               <ShoppingCart size={18} />
               {cart.length > 0 && <span className={styles.topbarBadge}>{cart.length}</span>}
-            </button>
-            <button className={styles.iconBtn} type="button" onClick={() => startChat(false)} aria-label="New chat">
-              <Plus size={18} />
             </button>
           </div>
         </header>
@@ -4604,37 +4655,31 @@ function HomeExperience() {
               <p>Ask naturally. I can browse Kapruka, compare gifts, check delivery, and help you checkout.</p>
             </div>
             <div className={styles.giftLanes}>
-              <button type="button" onClick={() => sendMessage("Birthday cake under Rs. 5000")}>
-                <Gift size={17} />
-                <span>Birthday cake under Rs. 5000</span>
-              </button>
-              <button type="button" onClick={() => sendMessage("Corporate gift hamper")}>
-                <Package size={17} />
-                <span>Corporate gift hamper</span>
-              </button>
-              <button type="button" onClick={() => sendMessage("Flowers for delivery today")}>
-                <Sparkles size={17} />
-                <span>Flowers for delivery today</span>
-              </button>
-              <button type="button" onClick={() => sendMessage("Surprise gift for my girlfriend")}>
-                <MessageCircle size={17} />
-                <span>Surprise gift for my girlfriend</span>
-              </button>
+              {seasonalSuggestions.map((sug, i) => (
+                <button key={i} type="button" onClick={() => sendMessage(sug.text)}>
+                  <sug.icon size={17} />
+                  <span>{sug.text}</span>
+                </button>
+              ))}
             </div>
           </section>
           )}
 
-          {displayMessages.map((message) => (
-            <article
-              key={message.id}
-              ref={message.products?.length ? lastProductMessageRef : undefined}
-              className={clsx(
-                styles.message,
-                message.role === "user" && styles.messageUser,
-                message.source === "voice" && styles.messageVoice,
-                message.source === "voice" && message.role === "assistant" && message.isStreaming && styles.messageVoiceSpeaking
-              )}
-            >
+          <AnimatePresence initial={false}>
+            {displayMessages.map((message) => (
+              <motion.article
+                key={message.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, type: "spring", bounce: 0.3 }}
+                ref={message.products?.length ? lastProductMessageRef : undefined}
+                className={clsx(
+                  styles.message,
+                  message.role === "user" && styles.messageUser,
+                  message.source === "voice" && styles.messageVoice,
+                  message.source === "voice" && message.role === "assistant" && message.isStreaming && styles.messageVoiceSpeaking
+                )}
+              >
               <div className={styles.messageAvatar}>
                 {message.role === "assistant" ? <Bot size={16} /> : <User size={16} />}
               </div>
@@ -4664,8 +4709,12 @@ function HomeExperience() {
                     <div className={styles.messageImageWrap}>
                       <img src={message.image.url} alt="Uploaded product search" />
                       {message.image.searching && (
-                        <div className={styles.messageImageLoading}>
-                          <Loader2 size={20} className={styles.spinIcon} />
+                        <div className={styles.laserOverlay}>
+                          <motion.div
+                            className={styles.laserLine}
+                            animate={{ top: ["0%", "98%", "0%"] }}
+                            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                          />
                         </div>
                       )}
                     </div>
@@ -4717,22 +4766,37 @@ function HomeExperience() {
                   </div>
                 )}
               </div>
-            </article>
-          ))}
+                </motion.article>
+            ))}
+          </AnimatePresence>
 
           {loading && (
             <article className={styles.message}>
               <div className={styles.messageAvatar}>
                 <Bot size={16} />
               </div>
-              <div className={styles.messageBubble}>
-                <div className={styles.typing}>
-                  <div className={styles.typingDots}>
-                    <span />
-                    <span />
-                    <span />
+              <div>
+                <div className={styles.messageBubble}>
+                  <div className={styles.typing}>
+                    <div className={styles.typingDots}>
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                    {uiText("Searching Kapruka...", conversationLanguage)}
                   </div>
-                  {uiText("Searching Kapruka...", conversationLanguage)}
+                </div>
+                <div className={styles.productGrid} style={{ marginTop: "12px" }}>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={styles.skeletonCard}>
+                      <div className={styles.skeletonImage} />
+                      <div className={styles.skeletonBody}>
+                        <div className={styles.skeletonLine} />
+                        <div className={styles.skeletonLine} />
+                        <div className={styles.skeletonLine} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </article>
@@ -5015,8 +5079,8 @@ function HomeExperience() {
         ) : (
           <div className={styles.cartTabContent}>
             <div className={styles.cartHeaderClean}>
-              <h2>Your cart</h2>
-              <span>Your gift bundle</span>
+              <h2>{uiText("Your cart", preferredLanguage)}</h2>
+              <span>{uiText("Your gift bundle", preferredLanguage)}</span>
             </div>
 
             <div className={styles.cartItems}>
@@ -5025,7 +5089,7 @@ function HomeExperience() {
                   <div className={styles.detailEmptyIcon}>
                     <Gift size={26} />
                   </div>
-                  <h3>Your cart is empty</h3>
+                  <h3>{uiText("Your cart is empty", preferredLanguage)}</h3>
                   <p>Add a product and I will help with delivery and checkout.</p>
                   {recentCarts.length > 0 && (
                     <div className={styles.recentCartList}>
@@ -5040,8 +5104,17 @@ function HomeExperience() {
                   )}
                 </div>
               ) : (
-                cart.map((item) => (
-                  <div className={styles.cartItem} key={item.product.id}>
+                <AnimatePresence initial={false}>
+                  {cart.map((item) => (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ type: "spring", bounce: 0.3 }}
+                      className={styles.cartItem} 
+                      key={item.product.id}
+                    >
                     {firstImage(item.product) ? (
                       <img className={styles.cartItemImg} src={firstImage(item.product)} alt="" />
                     ) : (
@@ -5069,14 +5142,15 @@ function HomeExperience() {
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               )}
             </div>
 
             <div className={styles.cartFooter}>
               <div className={styles.cartTotal}>
-                <span>Total</span>
+                <span>{uiText("Total", preferredLanguage)}</span>
                 <span className={styles.cartTotalPrice}>{money({ amount: total, currency: "LKR" })}</span>
               </div>
               <button className={styles.checkoutBtn} disabled={cart.length === 0} onClick={openDeliveryDetails}>
@@ -5154,7 +5228,13 @@ function ProductCard({
   const pick = productPickMeta(product, index);
 
   return (
-    <div className={clsx(styles.productCard, selected && styles.productCardSelected)} onClick={onSelect}>
+    <motion.div 
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={clsx(styles.productCard, selected && styles.productCardSelected)} 
+      onClick={onSelect}
+    >
       <div className={styles.productCardImage}>
         {firstImage(product) ? (
           <img src={firstImage(product)} alt={product.name} />
@@ -5189,7 +5269,7 @@ function ProductCard({
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

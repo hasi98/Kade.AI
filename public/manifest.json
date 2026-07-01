@@ -1,0 +1,16 @@
+{
+  "name": "Kade AI",
+  "short_name": "Kade AI",
+  "description": "Your premium AI shopping concierge for Kapruka.com",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAFAF8",
+  "theme_color": "#FAFAF8",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -37,12 +37,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "si-Latn": "Google eken issarahata yanna",
     "ta-Latn": "Google moolam thodaravum"
   },
-  "Sign in with Google": {
-    "si": "Google එකෙන් සයින් ඉන් වෙන්න",
-    "ta": "கூகுள் மூலம் சைன்-இன் செய்யவும்",
-    "si-Latn": "Google eken sign in wenna",
-    "ta-Latn": "Google moolam sign-in seiyavum"
-  },
+  "Sign in with Google": {},
   "Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google sign-in.": {
     "si": "Google sign-in වැඩ කරන්න NEXT_PUBLIC_GOOGLE_CLIENT_ID ඇඩ් කරන්න.",
     "ta": "கூகுள் சைன்-இன்னை எனேபிள் செய்ய NEXT_PUBLIC_GOOGLE_CLIENT_ID ஐச் சேர்க்கவும்.",
@@ -266,7 +261,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Tharkaalika chat"
   },
   "Kapruka shopping desk": {
-    "si": "කපෲක ශොපින් ඩෙස්ක් එක",
+    "si": "Kapruka ශොපින් ඩෙස්ක් එක",
     "ta": "கப்ரூக Shopping Desk",
     "si-Latn": "Kapruka shopping desk eka",
     "ta-Latn": "Kapruka shopping desk"
@@ -314,7 +309,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Cart"
   },
   "Hey, I'm Kade. Think of me as your Kapruka shopping friend.": {
-    "si": "ෂා මරු! මම කඩේ AI, ඔයාගේ කපෲක ශොපින් යාළුවා කියලා හිතන්නකෝ.",
+    "si": "ෂා මරු! මම කඩේ AI, ඔයාගේ Kapruka ශොපින් යාළුවා කියලා හිතන්නකෝ.",
     "ta": "ஹே, நான் தான் கடே. உங்கள் கப்ரூக ஷாப்பிங் பிரெண்ட்னு நினைச்சுக்கோங்க.",
     "si-Latn": "Sha maru! Mama Kade AI, oyage Kapruka shopping yaaluwa kiyala hithannako.",
     "ta-Latn": "Hey, naan thaan Kade. Ungal Kapruka shopping friend-nu nenachukkonga."
@@ -355,14 +350,14 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "si-Latn": "Kade AI eken ahanna...",
     "ta-Latn": "Kade AI idam kelungal..."
   },
-  "Searching Kapruka...": {
-    "si": "කපෲක එකේ බලන ගමන්...",
+  "Thinking...": {
+    "si": "Kapruka එකේ බලන ගමන්...",
     "ta": "கப்ரூகவில் தேடப்படுகிறது...",
     "si-Latn": "Kapruka eke balana gaman...",
     "ta-Latn": "Kapruka-vil thedappadugirathu..."
   },
   "Sure, let me check Kapruka for that.": {
-    "si": "අනිවාර්යයෙන්, මම ඒක කපෲක එකේ චෙක් කරලා බලන්නම්.",
+    "si": "අනිවාර්යයෙන්, මම ඒක Kapruka එකේ චෙක් කරලා බලන්නම්.",
     "ta": "கண்டிப்பா, நான் கப்ரூகவில செக் பண்ணி பாக்குறேன்.",
     "si-Latn": "Aniwarayen, mama eka Kapruka eke check karala balannam.",
     "ta-Latn": "Kandippaa, naan Kapruka-vila check panni paakkuraen."
@@ -506,7 +501,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Antha thayarippai thernaedukkiraen..."
   },
   "Let me search Kapruka for that.": {
-    "si": "මම ඒක කපෲක එකේ සර්ච් කරලා බලන්නම්කෝ.",
+    "si": "මම ඒක Kapruka එකේ සර්ච් කරලා බලන්නම්කෝ.",
     "ta": "இருங்க, நான் கப்ரூகவில அதை தேடி பாக்குறேன்.",
     "si-Latn": "Mama eka Kapruka eke search karala balannamko.",
     "ta-Latn": "Irunga, naan Kapruka-vila athai thedi paakkuraen."
@@ -632,7 +627,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Porulai perubavarin muzhu peyar enna?"
   },
   "What's their contact number? Kapruka needs it to coordinate delivery.": {
-    "si": "එයාගේ ෆෝන් නම්බර් එක මොකක්ද? කපෲක එකෙන් ඩිලිවරි එකට කතා කරන්න ඒක ඕනේ වෙනවා.",
+    "si": "එයාගේ ෆෝන් නම්බර් එක මොකක්ද? Kapruka එකෙන් ඩිලිවරි එකට කතා කරන්න ඒක ඕනේ වෙනවා.",
     "ta": "அவங்களோட போன் நம்பர் என்ன? டெலிவரியை கோஆர்டினேட் பண்ண கப்ரூகவிற்கு அது தேவைப்படும்.",
     "si-Latn": "Eyage phone number eka mokakda? Kapruka eken delivery ekata katha karanna eka one wenawa.",
     "ta-Latn": "Avangada phone number enna? Delivery-ai coordinate panna Kapruka-vukku adhu thevaippadum."
@@ -830,7 +825,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Paadhukaappana checkout thayar. Indha link tharpo some card mattrum delivery viberangalai lock seithidum."
   },
   "Create secure Kapruka pay link": {
-    "si": "සුරක්ෂිත කපෲක පේ ලින්ක් එකක් හදන්න",
+    "si": "සුරක්ෂිත Kapruka පේ ලින්ක් එකක් හදන්න",
     "ta": "பாதுகாப்பான கப்ரூக Pay லிங்கை உருவாக்கு",
     "si-Latn": "Surakshitha Kapruka pay link ekak hadanna",
     "ta-Latn": "Paadhukaappana Kapruka pay link-ai uruvaaku"
@@ -890,7 +885,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Meendum muyalavum"
   },
   "No form stress. Just the details Kapruka needs for the secure pay link.": {
-    "si": "ෆෝම් පුරවන්න දඟලන්න ඕනෙ නැහැ. කපෲක එකට පේමන්ට් ලින්ක් එක හදන්න ඕනෙ විස්තර ටික විතරක් දෙන්න.",
+    "si": "ෆෝම් පුරවන්න දඟලන්න ඕනෙ නැහැ. Kapruka එකට පේමන්ට් ලින්ක් එක හදන්න ඕනෙ විස්තර ටික විතරක් දෙන්න.",
     "ta": "ஃபார்ம் ஃபில் பண்ணும் டென்ஷன் இல்லை. கப்ரூக பேமெண்ட் லிங்கிற்கு தேவையான விபரங்கள் மட்டும் தான்.",
     "si-Latn": "Form purawanna dangalanna one naha. Kapruka ekata payment link eka hadanna one wisthara tika witarak denna.",
     "ta-Latn": "Form fill pannum tension illai. Kapruka payment link-uku thevaiyana viberangal mattum thaan."
@@ -974,7 +969,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Vera city allathu thaethiyai try pannalaama?"
   },
   "I can't find \"{city}\" in Kapruka delivery cities. Can you say the nearest main city? For example: Colombo 03, Kandy, Galle, or Balangoda.": {
-    "si": "කපෲක ඩිලිවරි ලිස්ට් එකේ \"{city}\" හම්බුණේ නැහැ. ළඟම තියෙන ප්‍රධාන නගරය කියන්න පුළුවන්ද? උදාහරණයකට: Colombo 03, Kandy, Galle, නැත්නම් Balangoda වගේ.",
+    "si": "Kapruka ඩිලිවරි ලිස්ට් එකේ \"{city}\" හම්බුණේ නැහැ. ළඟම තියෙන ප්‍රධාන නගරය කියන්න පුළුවන්ද? උදාහරණයකට: Colombo 03, Kandy, Galle, නැත්නම් Balangoda වගේ.",
     "ta": "கப்ரூக டெலிவரி லிஸ்ட்டில் \"{city}\" நகரம் இல்லை. அதற்கு அருகிலுள்ள பிரதான நகரத்தை சொல்ல முடியுமா? உதாரணத்திற்கு: Colombo 03, Kandy, Galle, அல்லது Balangoda.",
     "si-Latn": "Kapruka delivery list eke \"{city}\" hambune naha. Langama thiyena pradhana nagaraya kiyanna puluwanda? Udaharanayakata: Colombo 03, Kandy, Galle, nathnam Balangoda wage.",
     "ta-Latn": "Kapruka delivery list-il \"{city}\" nagaram illai. Atharku arugilulla pradhana nagarathai solla mudiyuma? Udaharanathirku: Colombo 03, Kandy, Galle, allathu Balangoda."
@@ -1058,7 +1053,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Serkkappaddullathu"
   },
   "View on Kapruka": {
-    "si": "කපෲක එකෙන් බලන්න",
+    "si": "Kapruka එකෙන් බලන්න",
     "ta": "கப்ரூகவில் பார்க்கவும்",
     "si-Latn": "Kapruka eken balanna",
     "ta-Latn": "Kapruka-vil paarkavum"
@@ -1070,7 +1065,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "kapruka.com open aagum"
   },
   "Prices and availability checked live from Kapruka": {
-    "si": "මිල ගණන් සහ බඩු තියෙනවද කියලා කපෲක එකෙන් සජීවීව බලන ලදී",
+    "si": "මිල ගණන් සහ බඩු තියෙනවද කියලා Kapruka එකෙන් සජීවීව බලන ලදී",
     "ta": "விலைகள் மற்றும் ஸ்டாக் விபரங்கள் கப்ரூகவிலிருந்து லைவ்வாக சரிபார்க்கப்பட்டது",
     "si-Latn": "Mila ganan saha badu thiyenawada kiyala Kapruka eken live balana ladi",
     "ta-Latn": "Vilaigal mattrum stock viberangal Kapruka-vilirundhu live-aaga sari paarkappaddathu"
@@ -1148,7 +1143,7 @@ export const UI_TRANSLATIONS: Record<string, Partial<Record<Exclude<UiLanguage, 
     "ta-Latn": "Gift bundle onrai uruvaakka shopping-ai thodangungal."
   },
   "Proceed to Secure Kapruka Checkout": {
-    "si": "ආරක්‍ෂිත කපෲක චෙක්අවුට් එකට යන්න",
+    "si": "ආරක්‍ෂිත Kapruka චෙක්අවුට් එකට යන්න",
     "ta": "பாதுகாப்பான கப்ரூக செக்அவுட்டிற்குச் செல்லவும்",
     "si-Latn": "Arakshitha Kapruka checkout ekata yanna",
     "ta-Latn": "Paadhukaappana Kapruka checkout-ukku chellavum"

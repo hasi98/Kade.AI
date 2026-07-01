@@ -152,28 +152,11 @@
   color: var(--accent);
 }
 
-.livePill {
-  height: 32px;
-  padding: 0 11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--border-accent);
-  border-radius: 999px;
-  background: var(--accent-muted);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.livePill span {
-  width: 7px;
-  height: 7px;
+.mcpStatusDot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(212, 148, 26, 0.6);
+  transition: all 0.3s ease;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -883,6 +866,11 @@
   gap: 4px;
 }
 
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.4; transform: translateY(0) scale(1); }
+  30% { opacity: 1; transform: translateY(-5px) scale(1.2); }
+}
+
 .typingDots span {
   width: 6px;
   height: 6px;
@@ -1192,13 +1180,24 @@
   object-fit: cover;
 }
 
-.messageImageLoading {
+.laserOverlay {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.laserLine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #3b82f6; /* Premium glowing blue */
+  box-shadow: 0 0 15px 3px rgba(59, 130, 246, 0.8), 0 0 5px 1px #fff;
+  z-index: 10;
 }
 
 .dropZone {
@@ -2057,6 +2056,11 @@ select.checkoutInput {
 
 /* ── Spin animation ── */
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .spinIcon {
   animation: spin 1s linear infinite;
 }
@@ -2236,7 +2240,7 @@ select.checkoutInput {
   .messageUser {
     width: auto;
     max-width: 100%;
-    margin-left: 0;
+    margin-left: auto;
     justify-content: flex-end;
   }
 
@@ -2266,7 +2270,49 @@ select.checkoutInput {
   }
 }
 
-/* ══════════════════════════════════════
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeletonCard {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonImage {
+  height: 150px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-page) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonBody {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeletonLine {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-page) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonLine:nth-child(1) { width: 80%; }
+.skeletonLine:nth-child(2) { width: 60%; }
+.skeletonLine:nth-child(3) { width: 40%; margin-top: auto; }
+
+/* ──══════════════════════════════════════
    Live Voice Call Overlay
    ══════════════════════════════════════ */
 
@@ -4051,6 +4097,14 @@ select.checkoutInput {
 
   .sidebarOpen .cartSidebar {
     transform: translateX(0);
+  }
+
+  .mobileSidebarOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 39;
+    backdrop-filter: blur(2px);
   }
 
   .mobileMenuBtn {

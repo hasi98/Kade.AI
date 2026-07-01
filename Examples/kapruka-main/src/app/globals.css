@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-hanken), "Hanken Grotesk", system-ui, sans-serif;
+  --font-display: var(--font-instrument), "Instrument Serif", Georgia, serif;
+  --font-hand: var(--font-caveat), "Caveat", cursive;
+
+  /* Kapruka brand palette — sourced from kapruka.com/static/css/style_core_2025.css */
+  --color-canvas: #F7F5FF;      /* very light purple-tinted white */
+  --color-surface: #FFFFFF;
+  --color-surf2: #F0EBF8;       /* subtle purple surface */
+  --color-ink: #291356;         /* deep purple for primary text */
+  --color-inksoft: #5b5568;     /* muted purple-grey */
+  --color-line: #DDD4EE;        /* purple-tinted border */
+  --color-brand: #402970;       /* Kapruka primary purple */
+  --color-branddeep: #2D1A55;   /* darker purple for hover */
+  --color-brandsoft: #dad1f3;   /* light purple highlight */
+  --color-gold: #FFB800;        /* amber/sale accent */
+  --color-goldsoft: #FFF4CC;    /* light gold */
+  --color-forest: #1A895E;      /* success green */
+  --color-forestsoft: #E3F4E8;  /* light green */
+  --color-rail: #1C0D3F;        /* very dark purple nav rail */
+
+  --shadow-card: 0 1px 2px rgba(64,41,112,.05), 0 4px 12px -6px rgba(64,41,112,.10);
+  --shadow-lift: 0 1px 3px rgba(64,41,112,.06), 0 8px 20px -8px rgba(64,41,112,.14);
+  --shadow-rail: 0 0 0 1px rgba(64,41,112,.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #EAE5F7;   /* lavender body bg */
+  color: #291356;
+  font-family: var(--font-hanken), "Hanken Grotesk", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar — purple-tinted */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(64,41,112,.18);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(64,41,112,.32);
+  background-clip: content-box;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* Rise animation (message entrance) */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-rise { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+
+/* Blink dots animation */
+@keyframes blink {
+  0%, 60%, 100% { opacity: .25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.animate-blink { animation: blink 1.2s infinite; }
+
+/* Canvas gradient for chat background */
+.grad-canvas {
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(64,41,112,.07), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(64,41,112,.04), transparent 50%),
+    #F7F5FF;
+}
+
+/* Legacy animations kept for compatibility */
+@keyframes pulseDot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1); }
+}
+.animate-pulse-dot { animation: pulseDot 1.4s ease-in-out infinite; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in { animation: fadeIn 0.25s ease-out; }
+
+/* Prose overrides for markdown in agent bubbles */
+.prose-warm a      { color: #402970; }
+.prose-warm strong { color: #291356; font-weight: 600; }
+.prose-warm code   { background: #dad1f3; color: #2D1A55; padding: .1em .3em; border-radius: 4px; font-size: .85em; }
+.prose-warm ul,
+.prose-warm ol     { padding-left: 1.25rem; }
+.prose-warm li     { margin-block: 0.2rem; }
+.prose-warm p      { margin-block: 0.4rem; }
+
+/* Textarea auto-grow */
+textarea { field-sizing: content; min-height: 1.5rem; }

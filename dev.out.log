@@ -1,0 +1,167 @@
+
+> kade-ai@1.0.0 dev
+> next dev --port 3000
+
+▲ Next.js 16.2.7 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.22:3000
+- Environments: .env.local
+✓ Ready in 5.2s
+Creating turbopack project { dir: 'D:\\Projects\\Kade AI', testMode: true }
+
+○ Compiling / ...
+ GET / 200 in 5.0s (next.js: 4.8s, application-code: 200ms)
+ GET / 200 in 43ms (next.js: 6ms, application-code: 37ms)
+ GET / 200 in 37ms (next.js: 5ms, application-code: 32ms)
+ GET /api/cities?limit=50 200 in 3.3s (next.js: 690ms, application-code: 2.6s)
+ POST /api/live-token 200 in 1042ms (next.js: 153ms, application-code: 890ms)
+ POST /api/gift-research 500 in 558ms (next.js: 29ms, application-code: 529ms)
+ POST /api/search 200 in 2.8s (next.js: 80ms, application-code: 2.7s)
+ GET /api/product/EF_PC_FASHION0V2033P00025 200 in 91s (next.js: 1216ms, application-code: 90s)
+ GET /api/product/EF_PC_FASHION0V2033P00061 200 in 92s (next.js: 1213ms, application-code: 90s)
+ GET /api/product/EF_PC_JEWE0V2033P00038 200 in 92s (next.js: 1213ms, application-code: 91s)
+ GET /api/product/EF_PC_FASHION0V2033P00062 200 in 92s (next.js: 1216ms, application-code: 91s)
+ GET /api/product/EF_PC_JEWE0V2033P00039 200 in 92s (next.js: 1212ms, application-code: 91s)
+ GET /api/product/EF_PC_FASHION0V1624P00007 200 in 92s (next.js: 1212ms, application-code: 91s)
+ GET /api/product/EF_PC_FASHION0V2033P00025 200 in 790ms (next.js: 2ms, application-code: 788ms)
+ GET /api/product/EF_PC_SCHO0V2686POD00061 200 in 1253ms (next.js: 6ms, application-code: 1246ms)
+ GET / 200 in 95ms (next.js: 41ms, application-code: 53ms)
+ GET / 200 in 29ms (next.js: 6ms, application-code: 24ms)
+✓ Compiled in 3.7s
+ GET / 200 in 113ms (next.js: 89ms, application-code: 24ms)
+✓ Compiled in 1249ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 88ms (next.js: 55ms, application-code: 33ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 16ms (next.js: 5ms, application-code: 12ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 110ms (next.js: 2ms, application-code: 107ms)
+ GET /api/cities?limit=50 200 in 1474ms (next.js: 25ms, application-code: 1449ms)
+✓ Compiled in 87ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 82ms (next.js: 61ms, application-code: 20ms)
+✓ Compiled in 74ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 88ms (next.js: 68ms, application-code: 20ms)
+✓ Compiled in 76ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 81ms (next.js: 60ms, application-code: 22ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 65ms (next.js: 40ms, application-code: 25ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 109ms (next.js: 72ms, application-code: 37ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 80ms (next.js: 54ms, application-code: 25ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 76ms (next.js: 51ms, application-code: 25ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 91ms (next.js: 59ms, application-code: 32ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 66ms (next.js: 46ms, application-code: 20ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 73ms (next.js: 47ms, application-code: 26ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 78ms (next.js: 50ms, application-code: 28ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 64ms (next.js: 42ms, application-code: 22ms)
+✓ Compiled in 94ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 113ms (next.js: 91ms, application-code: 22ms)
+✓ Compiled in 74ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 115ms (next.js: 71ms, application-code: 44ms)
+✓ Compiled in 174ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 112ms (next.js: 82ms, application-code: 30ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 69ms (next.js: 44ms, application-code: 25ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 37ms (next.js: 8ms, application-code: 29ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 14ms (next.js: 3ms, application-code: 11ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 108ms (next.js: 61ms, application-code: 47ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 29ms (next.js: 5ms, application-code: 24ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 73ms (next.js: 48ms, application-code: 25ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 68ms (next.js: 44ms, application-code: 24ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 73ms (next.js: 49ms, application-code: 24ms)
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 78ms (next.js: 49ms, application-code: 28ms)
+✓ Compiled in 163ms
+ GET /?chat=chat_mqrgr6gx_577ba5e7 200 in 102ms (next.js: 68ms, application-code: 34ms)
+ GET / 200 in 132ms (next.js: 3ms, application-code: 129ms)
+ POST /api/chat 200 in 1407ms (next.js: 419ms, application-code: 988ms)
+[KADE] intent=PRECHECK model=kade-smalltalk-precheck ms=2
+ POST /api/chat 200 in 21ms (next.js: 4ms, application-code: 17ms)
+ POST /api/chat 200 in 925ms (next.js: 4ms, application-code: 921ms)
+ GET /?chat=chat_mqx5xfso_2213ebc5 200 in 48ms (next.js: 6ms, application-code: 42ms)
+ GET /api/cities?limit=50 200 in 1783ms (next.js: 105ms, application-code: 1678ms)
+ POST /api/chat 200 in 876ms (next.js: 6ms, application-code: 870ms)
+ GET /?chat=chat_mqx5yact_361ac5bc 200 in 81ms (next.js: 41ms, application-code: 40ms)
+ GET /?chat=chat_mqx5yact_361ac5bc 200 in 21ms (next.js: 4ms, application-code: 17ms)
+ GET /?chat=chat_mqx5yact_361ac5bc 200 in 34ms (next.js: 4ms, application-code: 30ms)
+ GET /?chat=chat_mqx5yact_361ac5bc 200 in 136ms (next.js: 3ms, application-code: 133ms)
+ GET /?chat=chat_mqx5yact_361ac5bc 200 in 124ms (next.js: 3ms, application-code: 121ms)
+ GET /api/cities?limit=50 200 in 1475ms (next.js: 30ms, application-code: 1444ms)
+[KADE] intent=PRECHECK model=kade-smalltalk-precheck ms=4
+ POST /api/chat 200 in 82ms (next.js: 64ms, application-code: 17ms)
+[KADE] intent=SIMPLE model=gemini-3.1-flash-lite-preview ms=5146
+ POST /api/chat 200 in 5.2s (next.js: 1892µs, application-code: 5.2s)
+[KADE] intent=SIMPLE model=gemini-3.1-flash-lite-preview ms=3299
+ POST /api/chat 200 in 3.3s (next.js: 1969µs, application-code: 3.3s)
+[KADE] intent=SIMPLE model=gemini-3.1-flash-lite-preview ms=2143
+ POST /api/chat 200 in 2.2s (next.js: 3ms, application-code: 2.2s)
+ GET /?chat=chat_mqx67phi_e7847e0a 200 in 33ms (next.js: 5ms, application-code: 28ms)
+ GET /api/cities?limit=50 200 in 1536ms (next.js: 3ms, application-code: 1533ms)
+[KADE] intent=SIMPLE model=gemini-3.1-flash-lite-preview ms=4681
+ POST /api/chat 200 in 4.7s (next.js: 4ms, application-code: 4.7s)
+ GET /api/product/CAKE00KA001962 200 in 1887ms (next.js: 182ms, application-code: 1705ms)
+ GET /api/product/CAKE00KA001423 200 in 2.2s (next.js: 201ms, application-code: 1979ms)
+ GET /api/product/CANDLES00149 200 in 2.3s (next.js: 188ms, application-code: 2.1s)
+ GET /api/product/CAKE00KA001832 200 in 2.1s (next.js: 9ms, application-code: 2.1s)
+ GET /api/product/CAKE00KA001836 200 in 2.3s (next.js: 175ms, application-code: 2.2s)
+ GET /api/product/CAKE00KA002001 200 in 2.3s (next.js: 194ms, application-code: 2.1s)
+ GET /api/product/CAKE00KA001685 200 in 1089ms (next.js: 4ms, application-code: 1085ms)
+ POST /api/live-token 200 in 1368ms (next.js: 484ms, application-code: 884ms)
+ POST /api/live-token 200 in 931ms (next.js: 3ms, application-code: 928ms)
+ GET /api/product/CAKE00KA001836 200 in 2.1s (next.js: 7ms, application-code: 2.1s)
+✓ Compiled in 3s
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 673ms (next.js: 510ms, application-code: 163ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 16ms (next.js: 4ms, application-code: 12ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 485ms (next.js: 3ms, application-code: 482ms)
+ GET /api/cities?limit=50 200 in 1947ms (next.js: 227ms, application-code: 1720ms)
+✓ Compiled in 3.8s
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 144ms (next.js: 72ms, application-code: 72ms)
+ GET /api/cities?limit=50 200 in 1549ms (next.js: 25ms, application-code: 1524ms)
+✓ Compiled in 81ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 93ms (next.js: 66ms, application-code: 27ms)
+✓ Finished filesystem cache database compaction in 14.2s
+✓ Compiled in 145ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 146ms (next.js: 69ms, application-code: 77ms)
+ GET /api/cities?limit=50 200 in 1559ms (next.js: 37ms, application-code: 1522ms)
+✓ Compiled in 132ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 82ms (next.js: 61ms, application-code: 21ms)
+✓ Compiled in 144ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 91ms (next.js: 59ms, application-code: 32ms)
+✓ Compiled in 129ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 92ms (next.js: 61ms, application-code: 31ms)
+✓ Compiled in 89ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 94ms (next.js: 66ms, application-code: 28ms)
+✓ Compiled in 9.7s
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 96ms (next.js: 68ms, application-code: 28ms)
+✓ Compiled in 134ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 90ms (next.js: 60ms, application-code: 30ms)
+ GET / 200 in 128ms (next.js: 5ms, application-code: 123ms)
+ GET / 200 in 68ms (next.js: 7ms, application-code: 61ms)
+ GET / 200 in 47ms (next.js: 6ms, application-code: 41ms)
+ GET /api/cities?limit=50 200 in 1705ms (next.js: 37ms, application-code: 1668ms)
+[KADE] intent=PRECHECK model=kade-smalltalk-precheck ms=4
+ POST /api/chat 200 in 410ms (next.js: 397ms, application-code: 13ms)
+✓ Finished writing to filesystem cache in 17.6s
+✓ Compiled in 45.9s
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 529ms (next.js: 444ms, application-code: 85ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 566ms (next.js: 549ms, application-code: 17ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 19ms (next.js: 3ms, application-code: 16ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 542ms (next.js: 3ms, application-code: 539ms)
+ GET /api/cities?limit=50 200 in 1777ms (next.js: 132ms, application-code: 1645ms)
+✓ Compiled in 176ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 91ms (next.js: 57ms, application-code: 35ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 16ms (next.js: 2ms, application-code: 14ms)
+ GET /api/cities?limit=50 200 in 1466ms (next.js: 28ms, application-code: 1438ms)
+ GET /api/cities?limit=50 200 in 734ms (next.js: 2ms, application-code: 732ms)
+✓ Compiled in 458ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 157ms (next.js: 78ms, application-code: 79ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 51ms (next.js: 37ms, application-code: 14ms)
+ GET /api/cities?limit=50 200 in 1497ms (next.js: 29ms, application-code: 1469ms)
+ GET /api/cities?limit=50 200 in 770ms (next.js: 1886µs, application-code: 768ms)
+✓ Compiled in 134ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 87ms (next.js: 54ms, application-code: 33ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 232ms (next.js: 2ms, application-code: 230ms)
+✓ Compiled in 1012ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 160ms (next.js: 114ms, application-code: 45ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 20ms (next.js: 3ms, application-code: 16ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 99ms (next.js: 3ms, application-code: 96ms)
+ GET /api/cities?limit=50 200 in 1498ms (next.js: 28ms, application-code: 1470ms)
+  Reload env: .env.local
+✓ Compiled in 978ms
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 732ms (next.js: 527ms, application-code: 205ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 99ms (next.js: 38ms, application-code: 61ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 42ms (next.js: 3ms, application-code: 39ms)
+ GET /?chat=chat_mqx99baw_2e9b1eb7 200 in 43ms (next.js: 19ms, application-code: 24ms)

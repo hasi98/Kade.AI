@@ -1,0 +1,524 @@
+⚠ Slow filesystem detected. The benchmark took 495ms. If D:\Projects\Kade AI\.next/dev is a network drive, consider moving it to a local folder.
+See more: https://nextjs.org/docs/app/guides/local-development
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_8843711c-a74c-458d-bc7b-96e29ff5d513__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] Warning: Ephemeral token support is experimental and may change in future versions. (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477:13)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_6946de1d-ae42-4ae7-a909-ca2011840833__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+Chat stream error: Error [ApiError]: {"error":{"code":404,"message":"models/gemini-3.1-flash-preview is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.","status":"NOT_FOUND"}}
+    at async chatWithTools (lib\gemini.ts:275:22)
+    at async chatWithModelFallback (app\api\chat\route.ts:1089:11)
+    at async routedChatResponse (app\api\chat\route.ts:1262:44)
+    at async Object.start (app\api\chat\route.ts:1372:15)
+  273 |     iterations++;
+  274 |
+> 275 |     const response = await ai.models.generateContent({
+      |                      ^
+  276 |       model: modelName,
+  277 |       contents: currentContents,
+  278 |       config: { {
+  status: 404
+}
+Chat stream error: Error [ApiError]: {"error":{"code":404,"message":"models/gemini-3.1-flash-preview is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.","status":"NOT_FOUND"}}
+    at async chatWithTools (lib\gemini.ts:275:22)
+    at async chatWithModelFallback (app\api\chat\route.ts:1089:11)
+    at async routedChatResponse (app\api\chat\route.ts:1262:44)
+    at async Object.start (app\api\chat\route.ts:1372:15)
+  273 |     iterations++;
+  274 |
+> 275 |     const response = await ai.models.generateContent({
+      |                      ^
+  276 |       model: modelName,
+  277 |       contents: currentContents,
+  278 |       config: { {
+  status: 404
+}
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_e73e88d2-c8ec-48c0-a502-ed6ecf79338a__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+Chat stream error: Error [ApiError]: {"error":{"code":404,"message":"models/gemini-3.1-flash-preview is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.","status":"NOT_FOUND"}}
+    at async chatWithTools (lib\gemini.ts:275:22)
+    at async chatWithModelFallback (app\api\chat\route.ts:1089:11)
+    at async routedChatResponse (app\api\chat\route.ts:1262:44)
+    at async Object.start (app\api\chat\route.ts:1372:15)
+  273 |     iterations++;
+  274 |
+> 275 |     const response = await ai.models.generateContent({
+      |                      ^
+  276 |       model: modelName,
+  277 |       contents: currentContents,
+  278 |       config: { {
+  status: 404
+}
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_a34358cc-e7ff-4af9-8e46-7d843a85a7f7__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_ebbf8888-e2f6-4cd5-b0a9-ca0b2ea930dd__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] Warning: Ephemeral token support is experimental and may change in future versions. (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477:13)
+[browser] Warning: Ephemeral token support is experimental and may change in future versions. (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477:13)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_16e9254d-4123-4d5c-9481-9489d71c3af6__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_482ad0e4-c60e-43c0-b6ce-542c18ab5a71__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_7d78b74c-cfff-4ee0-853d-f678dd82330d__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <head>
+                          <body
+-                           __processed_8cd5928c-040a-408f-88e2-878f16a901fe__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+-                           data-atm-ext-installed="1.30.01"
+                          >
+                  ...
+ 
+    at <unknown> (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at emitPendingHydrationWarnings (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3438:13)
+    at completeWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6885:102)
+    at runWithFiberInDEV (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:131)
+    at completeUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9622:23)
+    at performUnitOfWork (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9557:28)
+    at workLoopConcurrentByScheduler (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9551:58)
+    at renderRootConcurrent (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9534:71)
+    at performWorkOnRoot (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at performWorkUntilDeadline (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+    at run (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:27936)
+    at runIfPresent (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28138)
+    at onGlobalMessage (chrome-extension://egjidjbpglichdcondbcbdnbeeppgdph/inpage.js:166:28608) (file://D:/Projects/Kade AI/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:3439:25)

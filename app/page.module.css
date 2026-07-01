@@ -3,6 +3,203 @@
    3-column layout: Cart | Chat | Product Detail
    ═══════════════════════════════════════════════ */
 
+/* ── Splash Screen ── */
+
+.splashOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2D1259 0%, #3D1A6E 40%, #1A0D3B 100%);
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+.splashOverlay.splashHidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splashLogo {
+  width: 100px;
+  height: 100px;
+  border-radius: 24px;
+  object-fit: contain;
+  animation: splashPulse 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 40px rgba(245, 197, 24, 0.4));
+}
+
+.splashTitle {
+  margin-top: 24px;
+  font-size: 32px;
+  font-weight: 800;
+  color: #F5C518;
+  letter-spacing: -0.02em;
+  animation: fadeInUp 800ms ease 300ms both;
+}
+
+.splashTagline {
+  margin-top: 8px;
+  font-size: 15px;
+  color: rgba(232, 222, 255, 0.7);
+  font-weight: 400;
+  animation: fadeInUp 800ms ease 600ms both;
+}
+
+.splashDots {
+  display: flex;
+  gap: 6px;
+  margin-top: 32px;
+  animation: fadeInUp 800ms ease 900ms both;
+}
+
+.splashDots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #F5C518;
+  animation: typingDot 1.2s ease-in-out infinite;
+}
+
+.splashDots span:nth-child(2) { animation-delay: 0.15s; }
+.splashDots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes splashPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 40px rgba(245, 197, 24, 0.4)); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 0 60px rgba(245, 197, 24, 0.6)); }
+}
+
+/* ── Confetti Overlay ── */
+
+.confettiCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+}
+
+/* ── Share Modal ── */
+
+.shareOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 200ms ease;
+  backdrop-filter: blur(4px);
+}
+
+.shareModal {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  animation: scaleIn 300ms ease;
+}
+
+.shareModal h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shareItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+}
+
+.shareItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.shareItem img {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.shareItem span {
+  flex: 1;
+  font-weight: 500;
+}
+
+.shareItem strong {
+  color: var(--kade-accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.shareActions {
+  display: flex;
+  gap: 8px;
+}
+
+.shareActions button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.shareWhatsApp {
+  background: #25D366;
+  color: white;
+  border: none;
+}
+
+.shareWhatsApp:hover {
+  background: #20BD5A;
+}
+
+.shareCopy {
+  background: var(--kade-primary);
+  color: white;
+  border: none;
+}
+
+.shareCopy:hover {
+  background: var(--kade-primary-hover);
+}
+
+.shareClose {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.shareClose:hover {
+  background: var(--border);
+}
+
 /* ── Shell ── */
 
 .shell {

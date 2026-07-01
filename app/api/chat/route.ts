@@ -535,14 +535,20 @@ function hasRecipientAge(text: string) {
   const lower = text.toLowerCase();
   return (
     /\b(?:age|aged|old|years? old|yrs? old|y\/o|yo)\s*(?:is|:)?\s*\d{1,2}\b/.test(lower) ||
-    /\b(?:she|he|they|girl|boy|girlfriend|boyfriend|gf|bf|daughter|son|kid|child|wife|husband)\s*(?:is|'s|age is|aged)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:she|he|they|girl|boy|girlfriend|boyfriend|gf|bf|daughter|son|kid|child|wife|husband)(?:'s|s)?\s*(?:is|age is|aged)?\s*\d{1,2}\b/.test(lower) ||
+    /\b(?:is|around|about|roughly)\s*\d{1,2}\b/.test(lower) ||
     /\b\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)\b/.test(lower)
   );
 }
 
 function latestMessageIsAgeOnly(message: string) {
   const normalized = message.trim().toLowerCase();
-  return /^\d{1,2}$/.test(normalized) || /^\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)$/.test(normalized);
+  return (
+    /^\d{1,2}$/.test(normalized) || 
+    /^\d{1,2}\s*(?:years? old|yrs? old|y\/o|yo)$/.test(normalized) ||
+    /^(?:she|he|they)(?:'s|s)?\s*(?:is|age is|aged)?\s*\d{1,2}$/.test(normalized) ||
+    /^(?:is|around|about|roughly)\s*\d{1,2}$/.test(normalized)
+  );
 }
 
 function ageQuestionForGift(message: string, history: Content[], language?: LockedLanguage) {

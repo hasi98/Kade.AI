@@ -12,6 +12,7 @@ export interface OrderDraftItem {
 
 export interface OrderDraft {
   items: OrderDraftItem[];
+  orderType?: "gift" | "personal";
   recipientName?: string;
   recipientPhone?: string;
   deliveryAddress?: string;
@@ -146,12 +147,17 @@ export function hasCakeItem(draft: OrderDraft) {
 export function getMissingFields(draft: OrderDraft): string[] {
   const missing: string[] = [];
   if (!draft.items.length) missing.push("items");
+  if (!draft.orderType) missing.push("orderType");
   if (!draft.recipientName?.trim()) missing.push("recipientName");
   if (!draft.recipientPhone?.trim()) missing.push("recipientPhone");
   if (!draft.deliveryAddress?.trim()) missing.push("deliveryAddress");
   if (!draft.deliveryCity?.trim()) missing.push("deliveryCity");
   if (!draft.deliveryDate?.trim()) missing.push("deliveryDate");
-  if (draft.giftMessage === undefined) missing.push("giftMessage");
+  
+  if (draft.orderType === "gift") {
+    if (draft.giftMessage === undefined) missing.push("giftMessage");
+  }
+  
   return missing;
 }
 

@@ -131,6 +131,44 @@
   gap: 10px;
 }
 
+.orderTypeToggle {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  margin-bottom: 12px;
+  gap: 4px;
+  border: 1px solid var(--border);
+}
+
+.typeBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.typeBtn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.typeBtnActive {
+  background: var(--bg-surface) !important;
+  color: var(--accent) !important;
+  box-shadow: var(--shadow-sm);
+}
+
 .field {
   min-height: 74px;
   padding: 12px;
@@ -158,6 +196,18 @@
 
 .field_correcting {
   animation: fieldCorrect 300ms ease forwards;
+}
+
+.field_error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2), var(--shadow-card) !important;
+}
+
+.errorReason {
+  color: #dc2626;
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 .field_pending {
@@ -220,6 +270,28 @@
   overflow-wrap: anywhere;
 }
 
+.fieldInput {
+  width: 100%;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.35;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+select.fieldInput {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+}
+
+.fieldInput::placeholder {
+  color: var(--text-muted);
+}
+
 .field_pending .fieldValue {
   color: var(--text-muted);
   font-weight: 700;
@@ -238,6 +310,16 @@
 .field button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.skipBtn {
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+}
+
+.skipBtn:hover {
+  background: var(--bg-hover) !important;
 }
 
 .fieldChar {

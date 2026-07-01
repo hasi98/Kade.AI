@@ -69,6 +69,78 @@ import styles from "./page.module.css";
 
 /* ── Helpers ── */
 
+function launchConfetti() {
+  const canvas = document.createElement("canvas");
+  canvas.className = styles.confettiCanvas;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d")!;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const colors = ["#F5C518", "#3D1A6E", "#E8614D", "#2A9D8F", "#FF6B9D", "#FFD740", "#7B4FD0"];
+  const particles: { x: number; y: number; w: number; h: number; color: string; vx: number; vy: number; rot: number; vr: number; life: number }[] = [];
+
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height * -1,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 4 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * 360,
+      vr: (Math.random() - 0.5) * 10,
+      life: 1,
+    });
+  }
+
+  let frame = 0;
+  const maxFrames = 180;
+
+  function animate() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;
+      p.rot += p.vr;
+      if (frame > maxFrames * 0.6) p.life -= 0.02;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+
+    if (frame < maxFrames) {
+      requestAnimationFrame(animate);
+    } else {
+      canvas.remove();
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+function buildShareText(items: CartItem[]) {
+  let text = "🎁 *My Kapruka Gift List via Kade AI*\n\n";
+  let total = 0;
+  items.forEach((item, i) => {
+    const price = item.product.price?.amount ?? 0;
+    total += price * item.quantity;
+    text += `${i + 1}. ${item.product.name} — Rs. ${price.toLocaleString()}${item.quantity > 1 ? ` x${item.quantity}` : ""}\n`;
+  });
+  text += `\n💰 *Total: Rs. ${total.toLocaleString()}*`;
+  text += "\n\n🛒 Powered by Kade AI — kapruka.com";
+  return text;
+}
+
 const prompts = [
   "🎂 Birthday cake under LKR 8000 to Colombo",
   "🌺 අම්මාට flowers gift එකක් බලමු",
@@ -1250,8 +1322,26 @@ function updateChatUrl(id: string, temporary: boolean, mode: "push" | "replace" 
 /* ── Main Page ── */
 
 export default function Home() {
+  const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDone(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <VoiceSessionProvider>
+      {/* Splash Screen */}
+      <div className={clsx(styles.splashOverlay, splashDone && styles.splashHidden)}>
+        <img src="/logo.png" alt="Kade AI" className={styles.splashLogo} />
+        <h1 className={styles.splashTitle}>Kade AI</h1>
+        <p className={styles.splashTagline}>Your AI shopping companion for Kapruka</p>
+        <div className={styles.splashDots}>
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
       <HomeExperience />
     </VoiceSessionProvider>
   );
@@ -1332,6 +1422,7 @@ function HomeExperience() {
   const [showImageSheet, setShowImageSheet] = useState(false);
   const [showDropZone, setShowDropZone] = useState(false);
   const [pendingImage, setPendingImage] = useState<PreparedImage | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const seasonalSuggestions = useMemo(() => {
     const month = new Date().getMonth();
@@ -1962,6 +2053,13 @@ function HomeExperience() {
         const merged = [...POPULAR_DELIVERY_CITIES, ...cities].filter(
           (option, index, all) => all.findIndex((item) => item.name === option.name) === index
         );
+        merged.sort((a, b) => {
+          const aCol = /^colombo\b/i.test(a.name);
+          const bCol = /^colombo\b/i.test(b.name);
+          if (aCol && !bCol) return 1;
+          if (!aCol && bCol) return -1;
+          return a.name.localeCompare(b.name);
+        });
         setCityOptions(merged.length ? merged : [{ name: "Colombo 07" }]);
       })
       .catch(() => {
@@ -3735,6 +3833,20 @@ function HomeExperience() {
     );
   }
 
+  function updateOrderField(field: keyof OrderDraft, value: string) {
+    if (!orderDraft) return;
+    const nextDraft = {
+      ...orderDraft,
+      [field]: value,
+      displayValues: {
+        ...(orderDraft.displayValues || {}),
+        [field]: value,
+      },
+    };
+    setOrderDraft(nextDraft);
+    saveOrderDraft(nextDraft);
+  }
+
   function editOrderField(field: keyof OrderDraft) {
     if (!orderDraft) return;
     const nextDraft = {
@@ -4013,6 +4125,8 @@ function HomeExperience() {
         lastPlacedOrderRef.current = data;
         lastPlacedOrderAtRef.current = Date.now();
         setOrderResult(data);
+        launchConfetti();
+        toast.success("Order placed successfully! 🎉");
         setOrder(data as unknown as Record<string, unknown>);
         setOrderDraft({
           ...placingDraft,
@@ -5045,7 +5159,9 @@ function HomeExperience() {
         ) : rightTab === "order" && orderDraft ? (
           <LiveOrderForm
             draft={orderDraft}
+            cityOptions={cityOptions}
             onFieldEdit={editOrderField}
+            onFieldValueChange={updateOrderField}
             onPlaceOrder={() => placeOrderFromDraft(orderDraft.stage === "error" ? { ...orderDraft, stage: "confirming" } : orderDraft)}
             onCancel={() => {
               clearOrderDraft();
@@ -5161,6 +5277,10 @@ function HomeExperience() {
                 <Bookmark size={14} />
                 Save for reorder
               </button>
+              <button className={styles.saveCartBtn} type="button" onClick={() => setShowShareModal(true)} disabled={cart.length === 0}>
+                <ExternalLink size={14} />
+                Share gift list
+              </button>
             </div>
           </div>
         )}
@@ -5173,6 +5293,52 @@ function HomeExperience() {
         onClose={() => setModalProduct(null)}
         onAddToCart={addToCart}
       />
+
+      {/* Share Gift List Modal */}
+      {showShareModal && cart.length > 0 && (
+        <div className={styles.shareOverlay} onClick={() => setShowShareModal(false)}>
+          <div className={styles.shareModal} onClick={(e) => e.stopPropagation()}>
+            <h3><Gift size={20} /> Share Gift List</h3>
+            <div className={styles.shareItems}>
+              {cart.map((item) => (
+                <div key={item.product.id} className={styles.shareItem}>
+                  {item.product.images?.[0] && <img src={item.product.images[0]} alt={item.product.name} />}
+                  <span>{item.product.name}</span>
+                  <strong>Rs. {(item.product.price?.amount ?? 0).toLocaleString()}</strong>
+                </div>
+              ))}
+            </div>
+            <div className={styles.shareActions}>
+              <button
+                className={styles.shareWhatsApp}
+                onClick={() => {
+                  const text = buildShareText(cart);
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+                  setShowShareModal(false);
+                }}
+              >
+                <MessageCircle size={16} />
+                WhatsApp
+              </button>
+              <button
+                className={styles.shareCopy}
+                onClick={() => {
+                  navigator.clipboard.writeText(buildShareText(cart));
+                  toast.success("Gift list copied to clipboard!");
+                  setShowShareModal(false);
+                }}
+              >
+                <ExternalLink size={16} />
+                Copy
+              </button>
+              <button className={styles.shareClose} onClick={() => setShowShareModal(false)}>
+                <X size={16} />
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

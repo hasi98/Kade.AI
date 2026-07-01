@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useRef, type ReactNode } from "react";
 import {
   CalendarDays,
   Check,
@@ -24,7 +24,9 @@ type FieldState = "filled" | "active" | "pending";
 
 interface LiveOrderFormProps {
   draft: OrderDraft;
+  cityOptions?: { name: string }[];
   onFieldEdit: (field: EditableOrderField) => void;
+  onFieldValueChange: (field: EditableOrderField, value: string) => void;
   onPlaceOrder: () => void;
   onCancel: () => void;
 }
@@ -139,12 +141,19 @@ function formatSmartDate(value: string | undefined) {
 
 function useTypewriter(text: string, speed = 30, animationKey = text) {
   const [displayed, setDisplayed] = useState("");
+  const prevKeyRef = useRef(animationKey);
 
   useEffect(() => {
     if (!text) {
       setDisplayed("");
       return;
     }
+
+    if (prevKeyRef.current === animationKey && displayed.length > 0) {
+      setDisplayed(text);
+      return;
+    }
+    prevKeyRef.current = animationKey;
 
     setDisplayed("");
     let index = 0;
@@ -155,7 +164,7 @@ function useTypewriter(text: string, speed = 30, animationKey = text) {
     }, speed);
 
     return () => window.clearInterval(timer);
-  }, [text, speed, animationKey]);
+  }, [text, speed, animationKey]); // `displayed.length` is intentionally omitted to avoid resetting
 
   return displayed;
 }
@@ -186,9 +195,10 @@ function progressForDraft(draft: OrderDraft) {
   }, 0);
 }
 
-export function LiveOrderForm({ draft, onFieldEdit, onPlaceOrder, onCancel }: LiveOrderFormProps) {
+export function LiveOrderForm({ draft, cityOptions, onFieldEdit, onFieldValueChange, onPlaceOrder, onCancel }: LiveOrderFormProps) {
   const missing = getMissingFields(draft);
-  const currentField = activeField(draft);
+  const [focusedField, setFocusedField] = useState<EditableOrderField | null>(null);
+  const currentField = focusedField ?? activeField(draft);
   const complete = missing.length === 0;
   const placing = draft.stage === "placing";
   const error = draft.stage === "error";
@@ -197,7 +207,59 @@ export function LiveOrderForm({ draft, onFieldEdit, onPlaceOrder, onCancel }: Li
   const grandTotal = draft.grandTotal ?? orderGrandTotal(draft);
   const [animatingField, setAnimatingField] = useState("");
   const [correctingField, setCorrectingField] = useState("");
+  const [dateError, setDateError] = useState<string | false>(false);
   const progress = progressForDraft(draft);
+
+  const currentOrderType = draft.orderType || "gift";
+
+  const activeFields = useMemo(() => {
+    return ORDER_FIELDS.filter((field) => {
+      if (currentOrderType === "personal" && (field.key === "senderName" || field.key === "giftMessage")) {
+        return false;
+      }
+      return true;
+    }).map((field) => {
+      if (currentOrderType === "personal") {
+        if (field.key === "recipientName") return { ...field, label: "Your name" };
+        if (field.key === "recipientPhone") return { ...field, label: "Your phone" };
+      }
+      return field;
+    });
+  }, [currentOrderType]);
+
+  useEffect(() => {
+    if (!draft.deliveryDate || !draft.deliveryCity || !draft.items.length) {
+      setDateError(false);
+      return;
+    }
+    
+    const controller = new AbortController();
+    fetch("/api/delivery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cart: draft.items.map(item => ({ product: { id: item.productId, price: { amount: item.price, currency: "LKR" } }, quantity: item.quantity })),
+        city: draft.deliveryCity,
+        delivery_date: draft.deliveryDate,
+      }),
+      signal: controller.signal,
+    })
+      .then(res => res.json())
+      .then(data => {
+        const delivery = data.delivery;
+        if (!delivery || !delivery.available) {
+          setDateError(delivery?.reason || "Date not available");
+        } else {
+          setDateError(false);
+          if (delivery.rate !== undefined && draft.deliveryRate !== delivery.rate) {
+            onFieldValueChange("deliveryRate" as EditableOrderField, delivery.rate);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [draft.deliveryDate, draft.deliveryCity, draft.items]);
 
   useEffect(() => {
     if (!draft.lastFilledField || !draft.lastFilledAt) return;
@@ -275,8 +337,29 @@ export function LiveOrderForm({ draft, onFieldEdit, onPlaceOrder, onCancel }: Li
         <strong>{progress}/{STEP_FIELD_GROUPS.length}</strong>
       </div>
 
+      <div className={styles.orderTypeToggle}>
+        <button
+          type="button"
+          className={`${styles.typeBtn} ${currentOrderType === "gift" ? styles.typeBtnActive : ""}`}
+          onClick={() => onFieldValueChange("orderType" as EditableOrderField, "gift")}
+          disabled={placing}
+        >
+          <Gift size={16} />
+          Send as Gift
+        </button>
+        <button
+          type="button"
+          className={`${styles.typeBtn} ${currentOrderType === "personal" ? styles.typeBtnActive : ""}`}
+          onClick={() => onFieldValueChange("orderType" as EditableOrderField, "personal")}
+          disabled={placing}
+        >
+          <UserRound size={16} />
+          Buy for Myself
+        </button>
+      </div>
+
       <div className={styles.fields}>
-        {ORDER_FIELDS.map((field) => {
+        {activeFields.map((field) => {
           const rawValue = field.value(draft);
           const isFilled = fieldIsComplete(draft, field.key);
           const isActive = !isFilled && currentField === field.key;
@@ -295,7 +378,15 @@ export function LiveOrderForm({ draft, onFieldEdit, onPlaceOrder, onCancel }: Li
               disabled={placing}
               speed={isAnimating ? 18 : 30}
               animationKey={`${field.key}-${draft.lastFilledAt ?? 0}-${draft.lastCorrectedAt ?? 0}`}
+              options={field.key === "deliveryCity" ? cityOptions?.map(c => c.name) : undefined}
+              inputType={field.key === "deliveryDate" ? "date" : "text"}
+              hasError={field.key === "deliveryDate" && typeof dateError === "string" ? true : false}
+              errorReason={field.key === "deliveryDate" && typeof dateError === "string" ? dateError : undefined}
               onEdit={() => onFieldEdit(field.key)}
+              onChange={(value) => onFieldValueChange(field.key, value)}
+              onFocus={() => setFocusedField(field.key)}
+              onBlur={() => setFocusedField(null)}
+              onSkip={field.key === "giftMessage" ? () => onFieldValueChange("giftMessage", "") : undefined}
             />
           );
         })}
@@ -369,7 +460,15 @@ function LiveOrderField({
   disabled,
   speed,
   animationKey,
+  options,
+  inputType = "text",
+  hasError = false,
+  errorReason,
   onEdit,
+  onChange,
+  onFocus,
+  onBlur,
+  onSkip,
 }: {
   state: FieldState;
   correcting: boolean;
@@ -380,13 +479,34 @@ function LiveOrderField({
   disabled: boolean;
   speed: number;
   animationKey: string;
+  options?: string[];
+  inputType?: "text" | "date";
+  hasError?: boolean;
+  errorReason?: string;
   onEdit: () => void;
+  onChange: (val: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  onSkip?: () => void;
 }) {
   const displayed = useTypewriter(state === "filled" ? value : "", speed, animationKey);
   const typed = displayed.length >= value.length && value.length > 0;
+  const [isFocused, setIsFocused] = useState(false);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    onFocus();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    onBlur();
+  };
+
+  const inputValue = isFocused ? value : (state === "filled" ? displayed : "");
 
   return (
-    <article className={`${styles.field} ${styles[`field_${state}`]} ${correcting ? styles.field_correcting : ""}`}>
+    <article className={`${styles.field} ${styles[`field_${state}`]} ${correcting ? styles.field_correcting : ""} ${hasError ? styles.field_error : ""}`}>
       <div className={styles.fieldIcon}>{icon}</div>
       <div className={styles.fieldBody}>
         <div className={styles.fieldTop}>
@@ -394,27 +514,52 @@ function LiveOrderField({
           {state === "active" && <em>asking now</em>}
           {state === "filled" && typed && <Check size={15} className={styles.check} />}
         </div>
-        <strong className={styles.fieldValue}>
-          {state === "filled" ? (
-            displayed.split("").map((char, index) => (
-              <span key={`${char}-${index}`} className={styles.fieldChar}>
-                {char === " " ? "\u00a0" : char}
-              </span>
-            ))
-          ) : state === "active" ? (
-            <span className={styles.activeDots}>
-              <i />
-              <i />
-              <i />
-            </span>
+        <div className={styles.fieldValue}>
+          {options ? (
+            <select
+              className={styles.fieldInput}
+              value={inputValue}
+              onChange={(e) => onChange(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              disabled={disabled || (state === "filled" && displayed !== value && !isFocused)}
+            >
+              <option value="" disabled hidden>
+                {state === "active" ? "Select city..." : placeholder}
+              </option>
+              {options.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
           ) : (
-            placeholder
+            <input
+              type={inputType}
+              className={styles.fieldInput}
+              value={inputValue}
+              onChange={(e) => onChange(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              placeholder={state === "active" ? "Type here..." : placeholder}
+              disabled={disabled || (state === "filled" && displayed !== value && !isFocused)}
+            />
           )}
-        </strong>
+        </div>
+        {hasError && errorReason && (
+          <div className={styles.errorReason}>
+            {errorReason}
+          </div>
+        )}
       </div>
       {state === "filled" && (
         <button type="button" onClick={onEdit} disabled={disabled}>
           Edit
+        </button>
+      )}
+      {state === "active" && onSkip && (
+        <button type="button" onClick={onSkip} disabled={disabled} className={styles.skipBtn}>
+          Skip
         </button>
       )}
     </article>

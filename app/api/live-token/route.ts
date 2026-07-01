@@ -309,7 +309,21 @@ function voiceContextPrompt(context?: LiveTokenContext) {
 
   const cartCount = Number(context?.cartCount ?? 0);
   const cartTotal = Number(context?.cartTotal ?? 0);
-  const language = context?.language === "si" ? "Sinhala/Singlish" : context?.language === "ta" ? "Tamil/Tanglish" : "English";
+  const language = context?.language === "si"
+    ? "Sinhala/Singlish"
+    : context?.language === "ta"
+      ? "Tamil/Tanglish"
+      : "AUTO-DETECT from the user's first meaningful spoken message";
+  const languageRule = context?.language
+    ? `You MUST keep every spoken response in this locked language for the whole voice session. Do not switch language because later checkout answers contain Sinhala/Tamil/Singlish words.
+If locked language is English, ask checkout questions in English with light Sri Lankan warmth, not Sinhala/Singlish.
+If locked language is Sinhala/Singlish, use Sinhala/Singlish.
+If locked language is Tamil/Tanglish, use Tamil/Tanglish.`
+    : `The language is not locked yet. Detect the user's FIRST meaningful spoken message, then lock that language for the whole voice session.
+If the first meaningful message is Sinhala script or Singlish, use Sinhala/Singlish for the entire session.
+If the first meaningful message is Tamil script or Tanglish, use Tamil/Tanglish for the entire session.
+If the first meaningful message is English, use English with light Sri Lankan warmth for the entire session.
+After locking, do not switch language because of later short replies, names, phone numbers, addresses, English product names, or mixed-language corrections.`;
 
   return `${KADE_LIVE_SYSTEM_PROMPT}
 
@@ -322,10 +336,7 @@ You are in voice mode. The user is speaking to you and can also see the chat UI,
 LOCKED CHAT LANGUAGE:
 ${language}
 
-You MUST keep every spoken response in this locked language for the whole voice session. Do not switch language because later checkout answers contain Sinhala/Tamil/Singlish words.
-If locked language is English, ask checkout questions in English with light Sri Lankan warmth, not Sinhala/Singlish.
-If locked language is Sinhala/Singlish, use Sinhala/Singlish.
-If locked language is Tamil/Tanglish, use Tamil/Tanglish.
+${languageRule}
 
 TRANSCRIPT:
 Meaningful customer-facing responses appear in the chat UI, but short tool/status filler may stay only in the voice dock. Keep responses concise for voice. Do not create extra filler just to fill the chat.

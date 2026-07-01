@@ -49,6 +49,7 @@ import { deliveryDisplayDate, formatDeliveryDate, formatDeliveryResponse, isDeli
 import { resizeImage, validateImageFile, type PreparedImage } from "@/lib/imageUtils";
 import { VoiceBridge, resolveProductReference, toShownVoiceProducts } from "@/lib/voiceBridge";
 import { VoiceSessionProvider, useVoiceSession, type ShownVoiceProduct } from "@/lib/voiceSessionContext";
+import { modelLanguage, uiText, type UiLanguage } from "@/lib/uiTranslations";
 import {
   clearOrderDraft,
   formatOrderDate,
@@ -262,9 +263,10 @@ type ChatApiPayload = {
   label?: ChatMessage["label"];
   quickReplies?: string[];
   cartActions?: CartAction[];
+  orderActions?: TextOrderAction[];
 };
 
-type ConversationLanguage = "en" | "si" | "ta";
+type ConversationLanguage = UiLanguage;
 type VoiceGender = keyof typeof VOICE_BY_GENDER;
 type AuthUser = {
   mode: "guest" | "google";
@@ -306,6 +308,15 @@ type CartAction = {
   product_name?: string | null;
   productName?: string | null;
   quantity?: number | string | null;
+};
+
+type TextOrderAction = {
+  action: "start" | "fill" | "correct" | "ready" | "place";
+  field?: string | null;
+  value?: string | null;
+  displayValue?: string | null;
+  allFieldsSummary?: string | null;
+  confirmed?: boolean | null;
 };
 
 function money(price?: { amount: number | null; currency: string }) {
@@ -877,10 +888,10 @@ function detectConversationLanguage(text: string): ConversationLanguage | null {
   if (/[\u0D80-\u0DFF]/.test(text)) return "si";
   if (/^(yes|yeah|yep|no|nope|nop|nah|ok|okay|sure)$/i.test(lower.trim())) return null;
   if (/\b(venum|venuma|enna|eppadi|epdi|sapadu|saapadu|nalla|illa|illai|seri|podunga|kudunga|konjam|romba|anga|inge|aval|avan)\b/i.test(lower)) {
-    return "ta";
+    return "ta-Latn";
   }
   if (/\b(mata|mama|oya|oyata|eyata|eka|ekak|karanna|balamu|gedara|hari|naha|ne|neda|mokakda|kohomada|lassana|thiyenawa|denna|ganna|ammata|appata)\b/i.test(lower)) {
-    return "si";
+    return "si-Latn";
   }
   if (/\b(hello|hi|hey|thanks|thank you|please|show|find|search|checkout|order|delivery|address|phone|name|message)\b/i.test(lower)) {
     return "en";
@@ -913,7 +924,22 @@ function sriLankaDateFromText(text: string) {
 }
 
 function orderQuestion(field: string, language: ConversationLanguage) {
-  const questions: Record<ConversationLanguage, Record<string, string>> = {
+  const englishQuestions: Record<string, string> = {
+    recipientName: "What's the recipient's full name?",
+    recipientPhone: "What's their contact number? Kapruka needs it to coordinate delivery.",
+    deliveryAddress: "What's the full delivery address?",
+    deliveryCity: "Which delivery city should I use?",
+    locationType: "Is that a house, apartment, office, or something else?",
+    deliveryDate: "When should it be delivered?",
+    senderName: "What's your name for the gift card?",
+    anonymous: "Should I show your name or keep it anonymous?",
+    giftMessage: "Want to add a custom message? You can say skip if not.",
+    icingText: "Oh, and any text for the cake icing? Like Happy Birthday Amma, or say skip.",
+    fallback: "I need one more detail before creating the order.",
+  };
+  return uiText(englishQuestions[field] ?? englishQuestions.fallback, language);
+
+  const questions: Record<"en" | "si" | "ta", Record<string, string>> = {
     en: {
       recipientName: "What's the recipient's full name?",
       recipientPhone: "What's their contact number? Kapruka needs it to coordinate delivery.",
@@ -954,10 +980,42 @@ function orderQuestion(field: string, language: ConversationLanguage) {
       fallback: "Order create பண்ண இன்னும் ஒரு detail தேவை.",
     },
   };
-  return questions[language][field] ?? questions[language].fallback;
+  const legacyLanguage = modelLanguage(language);
+  return questions[legacyLanguage][field] ?? questions[legacyLanguage].fallback;
 }
 
 function orderCopy(language: ConversationLanguage) {
+  return {
+    editAsk: uiText("What should I fix? Name, address, date - tell me.", language),
+    editRetry: uiText("Which detail should I fix? Pick name, phone, address, city, date, or message.", language),
+    emptyCart: uiText("The cart is empty.", language),
+    fullNameRetry: uiText("What's the recipient's full name?", language),
+    phoneRetry: uiText("Can you send a valid contact number? Something like 0771234567 or +94771234567.", language),
+    collectingTitle: uiText("Collecting details", language),
+    editSelect: uiText("Choose the detail you want to fix.", language),
+    collectingHelp: uiText("Answer in the chat. I will ask one thing at a time.", language),
+    confirmCreate: uiText("Shall I create the order?", language),
+    yesCreate: uiText("Yes, create order", language),
+    editDetails: uiText("Edit details", language),
+    summaryIntro: uiText("Okay, let me confirm everything:", language),
+    summaryTo: uiText("To", language),
+    summaryAddress: uiText("Address", language),
+    summaryArriving: uiText("Arriving", language),
+    summaryMessage: uiText("Message", language),
+    summarySubtotal: uiText("Items subtotal", language),
+    summaryDeliveryKnown: uiText("Delivery fee", language),
+    summaryDeliveryPending: uiText("Delivery fee will be checked before creating the order.", language),
+    summaryTotal: uiText("Total", language),
+    deliveryUpdated: uiText("Aiyo, that delivery date is not open. I updated it to the next available date before creating the order.", language),
+    orderCreated: uiText("Yesss! Order created!", language),
+    paySoon: uiText("Your payment link is ready - prices are locked for 60 minutes so pay soon!", language),
+    deliveryOn: uiText("Delivery on", language),
+    toCity: uiText("to", language),
+    didGood: uiText("You did good!", language),
+    tryAgain: uiText("Try again", language),
+    openingPayment: uiText("Payment link is ready. Opening it now.", language),
+  };
+
   const copy = {
     en: {
       editAsk: "What should I fix? Name, address, date - tell me.",
@@ -1050,7 +1108,7 @@ function orderCopy(language: ConversationLanguage) {
       openingPayment: "Payment link ready. இப்ப open பண்ணுறேன்.",
     },
   };
-  return copy[language];
+  return copy[modelLanguage(language)];
 }
 
 function orderConfirmationText(draft: OrderDraft, language: ConversationLanguage) {
@@ -1940,8 +1998,8 @@ function HomeExperience() {
             history: conversationHistory,
             audio: audioData,
             stream: true,
-            orderDraft: orderDraft ? { stage: orderDraft.stage } : null,
-            language: conversationLanguageRef.current,
+            orderDraft: textOrderDraftContext(),
+            language: modelLanguage(conversationLanguageRef.current),
             cart: cart.map((item) => ({ product: item.product, quantity: item.quantity })),
             visibleProducts: latestVisibleProducts(),
           }),
@@ -1983,6 +2041,7 @@ function HomeExperience() {
             setDetailOpen(true);
           }
           applyCartActions(data.cartActions, data.products ?? []);
+          void applyTextOrderActions(data.orderActions);
 
           setMessages((prev) =>
             prev.map((message) =>
@@ -2096,6 +2155,7 @@ function HomeExperience() {
       setDetailOpen(true);
     }
     applyCartActions(data.cartActions, data.products ?? []);
+    void applyTextOrderActions(data.orderActions);
     setMessages((prev) =>
       prev.map((message) =>
         message.id === assistantId
@@ -2216,6 +2276,10 @@ function HomeExperience() {
   }, []);
 
   const voiceSearchResultText = useCallback((hasProducts: boolean) => {
+    return hasProducts
+      ? uiText("Here are the closest options. Say a number, say a name, or tap one.", conversationLanguageRef.current)
+      : uiText("I could not find that exact one. Want to try a nearby option?", conversationLanguageRef.current);
+
     if (hasProducts) {
       if (conversationLanguageRef.current === "ta") {
         return "இதோ closest options. Number சொல்லுங்க, name சொல்லுங்க, இல்ல tap பண்ணுங்க.";
@@ -2395,9 +2459,9 @@ function HomeExperience() {
       }
 
       const searchResultText = products.length && wantsMore
-        ? "Here are more options I found. Say a number, say a name, or tap one."
+        ? uiText("Here are more options I found. Say a number, say a name, or tap one.", conversationLanguageRef.current)
         : wantsMore
-          ? "I could not find new options beyond the ones already shown. Want me to try a different type?"
+          ? uiText("I could not find new options beyond the ones already shown. Want me to try a different type?", conversationLanguageRef.current)
           : voiceSearchResultText(products.length > 0);
       /*
         if (products.length) {
@@ -3236,6 +3300,47 @@ function HomeExperience() {
     };
   }
 
+  async function applyTextOrderActions(actions?: TextOrderAction[]) {
+    if (!actions?.length) return;
+
+    for (const action of actions) {
+      if (action.action === "start") {
+        const draft = orderDraft && ["collecting", "confirming"].includes(orderDraft.stage)
+          ? orderDraft
+          : draftFromCurrentCart();
+        continueOrderDraft(draft);
+        continue;
+      }
+
+      if (action.action === "fill") {
+        handleVoiceOrderFieldFill({
+          field: action.field,
+          value: action.value ?? "",
+          displayValue: action.displayValue ?? action.value ?? "",
+        });
+        continue;
+      }
+
+      if (action.action === "correct") {
+        handleVoiceOrderFieldCorrection({
+          field: action.field,
+          value: action.value ?? "",
+          displayValue: action.displayValue ?? action.value ?? "",
+        });
+        continue;
+      }
+
+      if (action.action === "ready") {
+        handleVoiceOrderReady({ allFieldsSummary: action.allFieldsSummary ?? "" });
+        continue;
+      }
+
+      if (action.action === "place") {
+        await handleVoiceConfirmAndPlace({ confirmed: action.confirmed ?? true });
+      }
+    }
+  }
+
   async function handleImageFile(file: File) {
     const validation = validateImageFile(file);
     if (!validation.valid) {
@@ -3270,9 +3375,11 @@ function HomeExperience() {
 
     const userMessageId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
-    const steps = conversationLanguageRef.current === "en"
-      ? ["Analyzing image...", "Searching Kapruka...", "Found some matches!"]
-      : ["Image eka balanne... 👀", "Kapruka eke hoyanne... 🔍", "Best matches tibunawa! ✨"];
+    const steps = [
+      uiText("Analyzing image...", conversationLanguageRef.current),
+      uiText("Searching Kapruka...", conversationLanguageRef.current),
+      uiText("Found some matches!", conversationLanguageRef.current),
+    ];
 
     setMessages((prev) => [
       ...prev,
@@ -3310,7 +3417,8 @@ function HomeExperience() {
             mimeType: prepared.mimeType,
             userText,
           },
-          language: conversationLanguageRef.current,
+          language: modelLanguage(conversationLanguageRef.current),
+          orderDraft: textOrderDraftContext(),
           cart: cart.map((item) => ({ product: item.product, quantity: item.quantity })),
           visibleProducts: latestVisibleProducts(),
         }),
@@ -3522,6 +3630,25 @@ function HomeExperience() {
 
   function currentOrderLanguage() {
     return conversationLanguageRef.current;
+  }
+
+  function textOrderDraftContext(draft: OrderDraft | null = orderDraft) {
+    if (!draft) return null;
+    const missing = getMissingFields(draft);
+    return {
+      stage: draft.stage,
+      missing,
+      nextField: missing[0] ?? null,
+      recipientName: draft.recipientName ?? null,
+      recipientPhone: draft.recipientPhone ?? null,
+      streetAddress: draft.deliveryAddress ?? null,
+      city: draft.deliveryCity ?? null,
+      deliveryDate: draft.deliveryDate ?? null,
+      senderName: draft.senderName ?? null,
+      anonymous: draft.anonymous ?? null,
+      giftMessage: draft.giftMessage ?? null,
+      itemCount: draft.items.length,
+    };
   }
 
   function openExistingPaymentLink() {
@@ -4266,14 +4393,14 @@ function HomeExperience() {
             </div>
             <div className={styles.authIntro}>
               <span>Kapruka shopping desk</span>
-              <h2 id="auth-title">Start shopping your way</h2>
-              <p>Use Kade instantly as a guest, or sign in with Google only if you want your profile shown here.</p>
+              <h2 id="auth-title">{uiText("Start shopping your way", preferredLanguage)}</h2>
+              <p>{uiText("Use Kade instantly as a guest, or sign in with Google only if you want your profile shown here.", preferredLanguage)}</p>
             </div>
 
             <button className={styles.authGuestButton} type="button" onClick={continueAsGuest}>
               <User size={18} />
-              <span>Continue as guest</span>
-              <small>No account needed</small>
+              <span>{uiText("Continue as guest", preferredLanguage)}</span>
+              <small>{uiText("No account needed", preferredLanguage)}</small>
             </button>
 
             <div className={styles.authDivider}>
@@ -4284,13 +4411,13 @@ function HomeExperience() {
               {GOOGLE_CLIENT_ID ? (
                 <>
                   <div ref={googleButtonRef} className={styles.googleButtonMount}>
-                    {!googleScriptReady && <span>Loading Google sign-in...</span>}
+                    {!googleScriptReady && <span>{uiText("Sign in with Google", preferredLanguage)}...</span>}
                   </div>
-                  <p>Optional - shopping still works without signing in.</p>
+                  <p>{uiText("Optional - shopping still works without signing in.", preferredLanguage)}</p>
                 </>
               ) : (
                 <div className={styles.authGoogleSetup}>
-                  Add <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to enable Google sign-in.
+                  {uiText("Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google sign-in.", preferredLanguage)}
                 </div>
               )}
             </div>
@@ -4316,7 +4443,7 @@ function HomeExperience() {
             <div className={styles.settingsHeader}>
               <div>
                 <span>Kade AI</span>
-                <h2 id="settings-title">Settings</h2>
+                <h2 id="settings-title">{uiText("Settings", preferredLanguage)}</h2>
               </div>
               <button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>
                 <X size={18} />
@@ -4325,22 +4452,22 @@ function HomeExperience() {
 
             <div className={styles.settingsSection}>
               <div>
-                <h3>Account</h3>
-                <p>{authUser?.mode === "google" ? `Signed in as ${profileName}` : "Using guest mode."}</p>
+                <h3>{uiText("Account", preferredLanguage)}</h3>
+                <p>{authUser?.mode === "google" ? uiText("Signed in as {name}", preferredLanguage, { name: profileName }) : uiText("Using guest mode.", preferredLanguage)}</p>
               </div>
               <div className={styles.settingsAccountActions}>
                 {authUser?.mode === "google" ? (
                   <>
                     <button className={styles.settingsWideButton} type="button" onClick={openAuthChooser}>
-                      Switch account
+                      {uiText("Switch account", preferredLanguage)}
                     </button>
                     <button className={clsx(styles.settingsWideButton, styles.settingsDangerButton)} type="button" onClick={signOutToGuest}>
-                      Sign out
+                      {uiText("Sign out", preferredLanguage)}
                     </button>
                   </>
                 ) : (
                   <button className={styles.settingsWideButton} type="button" onClick={openAuthChooser}>
-                    Sign in with Google
+                    {uiText("Sign in with Google", preferredLanguage)}
                   </button>
                 )}
               </div>
@@ -4348,14 +4475,16 @@ function HomeExperience() {
 
             <div className={styles.settingsSection}>
               <div>
-                <h3>Language</h3>
-                <p>Choose the default chat language.</p>
+                <h3>{uiText("Language", preferredLanguage)}</h3>
+                <p>{uiText("Choose the default chat language.", preferredLanguage)}</p>
               </div>
               <div className={styles.settingsOptionGrid}>
                 {[
                   { value: "en", label: "English" },
                   { value: "si", label: "Sinhala" },
+                  { value: "si-Latn", label: "Singlish" },
                   { value: "ta", label: "Tamil" },
+                  { value: "ta-Latn", label: "Tanglish" },
                 ].map((option) => (
                   <button
                     key={option.value}
@@ -4371,13 +4500,13 @@ function HomeExperience() {
 
             <div className={styles.settingsSection}>
               <div>
-                <h3>Voice</h3>
-                <p>Pick a simple voice profile for Gemini Live.</p>
+                <h3>{uiText("Voice", preferredLanguage)}</h3>
+                <p>{uiText("Pick a simple voice profile for Gemini Live.", preferredLanguage)}</p>
               </div>
               <div className={styles.settingsOptionGrid}>
                 {[
-                  { value: "female", label: "Female" },
-                  { value: "male", label: "Male" },
+                  { value: "female", label: uiText("Female", preferredLanguage) },
+                  { value: "male", label: uiText("Male", preferredLanguage) },
                 ].map((option) => (
                   <button
                     key={option.value}
@@ -4582,7 +4711,7 @@ function HomeExperience() {
                         className={styles.quickReplyBtn}
                         onClick={() => sendMessage(reply)}
                       >
-                        {reply}
+                        {uiText(reply, conversationLanguage)}
                       </button>
                     ))}
                   </div>
@@ -4603,7 +4732,7 @@ function HomeExperience() {
                     <span />
                     <span />
                   </div>
-                  Searching Kapruka...
+                  {uiText("Searching Kapruka...", conversationLanguage)}
                 </div>
               </div>
             </article>
@@ -4643,6 +4772,7 @@ function HomeExperience() {
             cartItems={cart}
             conversationSummary={messages.filter((message) => message.id !== "welcome").slice(-10).map((message) => `${message.role}: ${message.text}`).join("\n")}
             lockedLanguage={conversationLanguage}
+            languageIsLocked={conversationLanguageLockedRef.current}
             preferredVoiceName={VOICE_BY_GENDER[voiceGender]}
           />
         ) : (
@@ -4709,7 +4839,7 @@ function HomeExperience() {
                   void handleImageFile(file);
                 }
               }}
-              placeholder="Ask Kade AI... / කඩේ AI එකෙන් විමසන්න..."
+              placeholder={uiText("Ask Kade AI...", conversationLanguage)}
               disabled={chatBusy}
             />
             <button 
@@ -5452,6 +5582,7 @@ function LiveCallOverlay({
   cartItems,
   conversationSummary,
   lockedLanguage,
+  languageIsLocked,
   preferredVoiceName,
 }: {
   onClose: () => void;
@@ -5472,6 +5603,7 @@ function LiveCallOverlay({
   cartItems: CartItem[];
   conversationSummary: string;
   lockedLanguage: ConversationLanguage;
+  languageIsLocked: boolean;
   preferredVoiceName: (typeof LIVE_VOICES)[number];
 }) {
   const [status, setStatus] = useState<"connecting" | "listening" | "speaking">("connecting");
@@ -5812,6 +5944,16 @@ function LiveCallOverlay({
     const isTracking = toolName === "kapruka_track_order" || toolName === "track_order";
 
     if (phase === "ready" && isSearch) {
+      return count > 0
+        ? uiText("Found {count} good options for you.", language, { count })
+        : uiText("I could not find that exact one. Want to try a nearby option?", language);
+    }
+    if (isSearch) return uiText("Let me search Kapruka for that.", language);
+    if (isDelivery) return uiText("Checking delivery availability.", language);
+    if (isOrder) return uiText("Setting up your order now.", language);
+    if (isTracking) return uiText("Looking up your order status.", language);
+
+    if (phase === "ready" && isSearch) {
       if (language === "ta") {
         return count > 0 ? `கிடைத்தது! ${count} options இருக்கு - பாருங்க.` : "Aiyo, exact match கிடைக்கல. வேற option பார்க்கலாமா?";
       }
@@ -5846,6 +5988,8 @@ function LiveCallOverlay({
 
   const liveOrderFailurePhrase = useCallback(() => {
     const language = lockedLanguageRef.current;
+    return uiText("The order did not go through on my side. Want me to check the details and try again?", language);
+
     if (language === "ta") {
       return "Order create panna mudiyala. Details check pannitu again try pannalama?";
     }
@@ -5869,9 +6013,9 @@ function LiveCallOverlay({
         clearDirectSearchFallback();
         clearProductActionFallback();
         promptLiveToSpeakNow(
-          lockedLanguageRef.current === "ta"
+          modelLanguage(lockedLanguageRef.current) === "ta"
             ? "Gift idea konjam yosichu paakuren."
-            : lockedLanguageRef.current === "si"
+            : modelLanguage(lockedLanguageRef.current) === "si"
               ? "Gift idea eka poddak balannam."
               : "Let me think through the gift idea first."
         );
@@ -6137,9 +6281,9 @@ function LiveCallOverlay({
     }
 
     if (!isMoreSearch && (isBroadCakeSearch(q, args) || (isBroadCakeSearch(lastHandledInputTranscriptRef.current) && isCakeQuery(q, args)))) {
-      const question = lockedLanguageRef.current === "ta"
+      const question = modelLanguage(lockedLanguageRef.current) === "ta"
         ? "Cake பார்க்கலாம். Birthday cake வேண்டுமா, chocolate cake வேண்டுமா, இல்ல simple tea-time cake வேண்டுமா?"
-        : lockedLanguageRef.current === "si"
+        : modelLanguage(lockedLanguageRef.current) === "si"
           ? "Cake බලමු. Birthday cake එකක්ද, chocolate cake එකක්ද, නැත්නම් simple tea-time cake එකක්ද?"
           : "Sure, what kind of cake should I look for - birthday cake, chocolate cake, or a simple tea-time cake?";
       sendToolResponse(functionCall, {
@@ -6459,7 +6603,7 @@ function LiveCallOverlay({
               })),
               cartCount: cartItemsRef.current.length,
               cartTotal: cartItemsRef.current.reduce((sum, item) => sum + (item.product.price?.amount ?? 0) * item.quantity, 0),
-              language: lockedLanguageRef.current,
+              language: languageIsLocked ? modelLanguage(lockedLanguageRef.current) : undefined,
             },
           }),
         });

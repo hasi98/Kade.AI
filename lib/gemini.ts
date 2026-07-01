@@ -102,6 +102,79 @@ const mcpTools: FunctionDeclaration[] = [
     },
   },
   {
+    name: "start_checkout",
+    description:
+      "Start the live checkout/order form in the UI when the user wants checkout, payment link, to place an order, or to buy the cart. Use this before collecting checkout fields.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  },
+  {
+    name: "fill_order_field",
+    description:
+      "Fill one checkout field in the live order form immediately after the user provides it. Use during text checkout, one field at a time. Do not wait to collect all fields.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        field: {
+          type: Type.STRING,
+          enum: ["recipientName", "recipientPhone", "streetAddress", "city", "deliveryDate", "senderName", "anonymous", "giftMessage"],
+          description: "The checkout field being filled.",
+        },
+        value: {
+          type: Type.STRING,
+          description: "The value to fill. Normalize deliveryDate to YYYY-MM-DD. Use empty string for skipped giftMessage.",
+        },
+        displayValue: {
+          type: Type.STRING,
+          description: "Human friendly display value.",
+        },
+      },
+      required: ["field", "value"],
+    },
+  },
+  {
+    name: "correct_order_field",
+    description:
+      "Correct an already-filled checkout field when the user asks to change recipient, phone, address, city, date, sender, anonymous, or gift message.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        field: {
+          type: Type.STRING,
+          enum: ["recipientName", "recipientPhone", "streetAddress", "city", "deliveryDate", "senderName", "anonymous", "giftMessage"],
+        },
+        value: { type: Type.STRING },
+        displayValue: { type: Type.STRING },
+      },
+      required: ["field", "value"],
+    },
+  },
+  {
+    name: "confirm_order_ready",
+    description:
+      "Use after all required checkout fields are filled to show the final order confirmation. Required: recipientName, recipientPhone, streetAddress, city, deliveryDate, senderName.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        allFieldsSummary: { type: Type.STRING, description: "Brief one-line order summary." },
+      },
+    },
+  },
+  {
+    name: "place_order_from_form",
+    description:
+      "Place the order from the current live order form after the user confirms the details are correct. Do not call before confirmation.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        confirmed: { type: Type.BOOLEAN },
+      },
+      required: ["confirmed"],
+    },
+  },
+  {
     name: "create_order",
     description:
       "Create a Kapruka order and get a payment link. Use ONLY when the user has confirmed all checkout details (recipient, address, cart items).",

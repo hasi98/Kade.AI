@@ -94,14 +94,39 @@ type CartAction = {
   quantity?: number | null;
 };
 
+type OrderAction = {
+  action: "start" | "fill" | "correct" | "ready" | "place";
+  field?: string | null;
+  value?: string | null;
+  displayValue?: string | null;
+  allFieldsSummary?: string | null;
+  confirmed?: boolean | null;
+};
+
 type ChatCartItem = {
   product?: Product;
   quantity?: number;
 };
 
+type ChatOrderDraftContext = {
+  stage?: string;
+  missing?: string[];
+  nextField?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  streetAddress?: string | null;
+  city?: string | null;
+  deliveryDate?: string | null;
+  senderName?: string | null;
+  anonymous?: boolean | null;
+  giftMessage?: string | null;
+  itemCount?: number | null;
+};
+
 type ChatToolContext = {
   cart?: ChatCartItem[];
   visibleProducts?: Product[];
+  orderDraft?: ChatOrderDraftContext | null;
 };
 
 type ImageInput = {
@@ -139,8 +164,24 @@ function cartContextText(context: ChatToolContext = {}) {
     .filter((item) => item.product?.id)
     .map((item, index) => `${index + 1}. ${item.product?.name} (${item.product?.id}) x${Number(item.quantity ?? 1)}`)
     .join("\n") || "Cart is empty.";
+  const draft = context.orderDraft;
+  const checkout = draft
+    ? [
+        `Stage: ${draft.stage ?? "idle"}`,
+        `Next missing field: ${draft.nextField ?? "none"}`,
+        `Missing fields: ${draft.missing?.length ? draft.missing.join(", ") : "none"}`,
+        `Recipient: ${draft.recipientName ?? "missing"}`,
+        `Phone: ${draft.recipientPhone ?? "missing"}`,
+        `Street address: ${draft.streetAddress ?? "missing"}`,
+        `City: ${draft.city ?? "missing"}`,
+        `Delivery date: ${draft.deliveryDate ?? "missing"}`,
+        `Sender: ${draft.senderName ?? "missing"}`,
+        `Anonymous: ${draft.anonymous === null || draft.anonymous === undefined ? "missing" : String(draft.anonymous)}`,
+        `Gift message: ${draft.giftMessage === null || draft.giftMessage === undefined ? "missing" : draft.giftMessage || "none"}`,
+      ].join("\n")
+    : "No checkout form is active.";
 
-  return `\n\nCURRENT VISIBLE PRODUCTS:\n${visible}\n\nCURRENT CART:\n${cart}\n\nCART TOOL RULES:\nUse modify_cart when the user asks to add, add all visible products, remove, change quantity, or clear cart items. For add, prefer visible product number/id/name. For "add all", use action add_all_visible. For remove or quantity changes, prefer cart item id/name. Do not claim the cart changed unless modify_cart returns ok=true.`;
+  return `\n\nCURRENT VISIBLE PRODUCTS:\n${visible}\n\nCURRENT CART:\n${cart}\n\nCURRENT CHECKOUT FORM:\n${checkout}\n\nCART TOOL RULES:\nUse modify_cart when the user asks to add, add all visible products, remove, change quantity, or clear cart items. For add, prefer visible product number/id/name. For "add all", use action add_all_visible. For remove or quantity changes, prefer cart item id/name. Do not claim the cart changed unless modify_cart returns ok=true.\n\nTEXT CHECKOUT TOOL RULES:\nUse start_checkout when the user wants checkout, order, buy, proceed, or payment link and no checkout form is active. Use fill_order_field immediately when the user answers the next missing checkout field. Use correct_order_field when the user changes an existing field. Use confirm_order_ready when all required fields are filled and you need final confirmation. Use place_order_from_form only after the user confirms the details are correct. During checkout, do not search products for names, phones, addresses, cities, dates, anonymous answers, or gift messages.`;
 }
 
 function findProductInContext(args: Record<string, unknown>, context: ChatToolContext, mode: "visible" | "cart" | "any") {
@@ -221,11 +262,65 @@ function handleCartTool(args: Record<string, unknown>, context: ChatToolContext 
   };
 }
 
+function handleOrderActionTool(name: string, args: Record<string, unknown>) {
+  if (name === "start_checkout") {
+    return {
+      ok: true,
+      orderAction: { action: "start" } satisfies OrderAction,
+      instruction: "Checkout form opened. Ask for the next missing detail, one question at a time.",
+    };
+  }
+
+  if (name === "fill_order_field" || name === "correct_order_field") {
+    const field = String(args.field ?? "").trim();
+    const value = String(args.value ?? "").trim();
+    const displayValue = String(args.displayValue ?? value).trim();
+    if (!field) return { ok: false, error: "Missing order field." };
+    if (!value && field !== "giftMessage") return { ok: false, error: "Missing order field value." };
+    return {
+      ok: true,
+      orderAction: {
+        action: name === "fill_order_field" ? "fill" : "correct",
+        field,
+        value,
+        displayValue,
+      } satisfies OrderAction,
+      instruction: "The UI will update the order form. Continue with the next missing detail or confirm when ready.",
+    };
+  }
+
+  if (name === "confirm_order_ready") {
+    return {
+      ok: true,
+      orderAction: {
+        action: "ready",
+        allFieldsSummary: typeof args.allFieldsSummary === "string" ? args.allFieldsSummary : "",
+      } satisfies OrderAction,
+      instruction: "The UI will show the final order confirmation. Ask the user to confirm before placing.",
+    };
+  }
+
+  if (name === "place_order_from_form") {
+    const confirmed = args.confirmed === true || String(args.confirmed ?? "").toLowerCase() === "true";
+    return {
+      ok: true,
+      orderAction: { action: "place", confirmed } satisfies OrderAction,
+      instruction: confirmed
+        ? "The UI will place the order from the current form. Do not read raw payment URLs."
+        : "The user did not confirm. Ask what they want to change.",
+    };
+  }
+
+  return null;
+}
+
 function createToolHandler(context: ChatToolContext = {}) {
   return async (name: string, args: Record<string, unknown>): Promise<unknown> => {
     if (name === "modify_cart") {
       return handleCartTool(args, context);
     }
+    const orderAction = handleOrderActionTool(name, args);
+    if (orderAction) return orderAction;
     return handleToolCall(name, args);
   };
 }
@@ -863,6 +958,14 @@ function extractCartActions(toolResults: Array<{ name: string; result: unknown }
   });
 }
 
+function extractOrderActions(toolResults: Array<{ name: string; result: unknown }>): OrderAction[] {
+  return toolResults.flatMap((tr) => {
+    if (!["start_checkout", "fill_order_field", "correct_order_field", "confirm_order_ready", "place_order_from_form"].includes(tr.name)) return [];
+    const result = tr.result as { ok?: boolean; orderAction?: OrderAction };
+    return result?.ok && result.orderAction ? [result.orderAction] : [];
+  });
+}
+
 function orderCreatedReply(order: OrderCreatedMetadata, delivery: unknown) {
   const deliveryRecord = delivery && typeof delivery === "object" ? (delivery as Record<string, unknown>) : {};
   const city = typeof deliveryRecord.city === "string" ? deliveryRecord.city : "the selected city";
@@ -1279,6 +1382,7 @@ async function routedChatResponse({
   const delivery = extractDelivery(toolResults);
   const order = extractOrder(toolResults);
   const cartActions = extractCartActions(toolResults);
+  const orderActions = extractOrderActions(toolResults);
   const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
   let label = null;
@@ -1293,6 +1397,7 @@ async function routedChatResponse({
     delivery,
     order,
     cartActions,
+    orderActions,
     label,
     model: modelUsed,
     intent: routeIntent,
@@ -1431,7 +1536,7 @@ export async function POST(req: NextRequest) {
       audio?: { data: string; mimeType: string };
       image?: ImageInput;
       stream?: boolean;
-      orderDraft?: { stage?: string };
+      orderDraft?: ChatOrderDraftContext | null;
       language?: LockedLanguage;
       cart?: ChatCartItem[];
       visibleProducts?: Product[];
@@ -1440,6 +1545,7 @@ export async function POST(req: NextRequest) {
     const toolContext: ChatToolContext = {
       cart: Array.isArray(cart) ? cart : [],
       visibleProducts: Array.isArray(visibleProducts) ? visibleProducts : [],
+      orderDraft: orderDraft && typeof orderDraft === "object" ? orderDraft : null,
     };
 
     if (image?.base64 && image.mimeType) {
@@ -1449,18 +1555,6 @@ export async function POST(req: NextRequest) {
     }
 
     const classifierPromise = isComplexIntent(message ?? "", conversationHistory);
-
-    if (orderDraft?.stage === "collecting" || orderDraft?.stage === "confirming") {
-      return Response.json({
-        reply: "Seri, order details tika complete karamu. Mokakda fix karanna one?",
-        products: [],
-        delivery: null,
-        order: null,
-        label: "AI_RECOMMENDATION",
-        quickReplies: ["Recipient name", "Phone", "Address", "City", "Date", "Message"],
-        model: "kade-order-local-guard",
-      });
-    }
 
     if (stream) {
       return streamChatResponse({
@@ -1504,6 +1598,7 @@ export async function POST(req: NextRequest) {
     const delivery = extractDelivery(toolResults);
     const order = extractOrder(toolResults);
     const cartActions = extractCartActions(toolResults);
+    const orderActions = extractOrderActions(toolResults);
     const reply = order ? orderCreatedReply(order, delivery) : delivery ? formatDeliveryResponse(delivery) : cleanAssistantReply(text);
 
     // Determine label based on what tools were called
@@ -1519,6 +1614,7 @@ export async function POST(req: NextRequest) {
       delivery,
       order,
       cartActions,
+      orderActions,
       label,
       model: modelUsed,
     });
